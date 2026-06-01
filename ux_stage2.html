@@ -63,10 +63,10 @@
     flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .desthead .edit{font-size:13px; font-weight:600; color:var(--sec); flex:none;}
 
-  /* 방향 띠 : 헤더 아래 full-width. 정류소 안내판처럼 회색 띠 + 흰 글씨, 가운데 현재 정류소 크게 */
-  .dirbar-wrap{padding:8px 16px 2px; background:var(--bg);}
+  /* 방향 띠 : 헤더 아래 좌우 꽉 찬 띠(정류소 안내판). 회색 + 흰 글씨, 가운데 현재 정류소 크게 */
+  .dirbar-wrap{padding:6px 0 4px; background:var(--bg);}
   .dirbar{display:flex; align-items:center; justify-content:center; gap:9px;
-    background:#6b6f76; border-radius:13px; padding:10px 14px;}
+    background:#6b6f76; border-radius:0; padding:11px 16px;}
   .dirbar .stop{font-size:12.5px; color:rgba(255,255,255,.62); font-weight:500; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; max-width:96px; flex:none;}
   .dirbar .here{font-size:19px; color:#fff; font-weight:800; letter-spacing:-.3px; flex:none;}
@@ -256,12 +256,6 @@
       </div>
 
       <div class="body">
-        <!-- 정류장까지 도보 한 줄만 -->
-        <div class="walkhint">
-          <svg viewBox="0 0 24 24" fill="#8a8a8e"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>
-          여기까지 걸어서 8분
-        </div>
-
         <!-- 1순위 : ①에서 고른 길 — 위로 고정 -->
         <div class="boardlbl">
           <span class="dotx" style="background:var(--blue)"></span>
