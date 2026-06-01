@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 카카오 로컬 (장소 검색) -->
+	<key>KAKAO_API_KEY</key>
+	<string>$(KAKAO_API_KEY)</string>
+
+	<!-- ODsay (도시 내 대중교통 경로) -->
+	<key>ODSAY_API_KEY</key>
+	<string>$(ODSAY_API_KEY)</string>
+
+	<!-- 공공데이터포털 TAGO (실시간 버스 + 시외/고속/열차/지하철) -->
+	<key>DATA_GO_KR_KEY</key>
+	<string>$(DATA_GO_KR_KEY)</string>
+
+	<!-- 서울 열린데이터광장 (실시간 지하철 도착 — 수도권) -->
+	<key>SEOUL_OPEN_API_KEY</key>
+	<string>$(SEOUL_OPEN_API_KEY)</string>
+
+	<!-- 위치 권한 -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>현재 위치를 출발지로 사용하기 위해 필요합니다</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>경로 안내 중 위치 추적에 사용됩니다</string>
+</dict>
+</plist>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — UX 목업 인덱스</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0; min-height:100vh; padding:60px 24px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff;
+    display:flex; flex-direction:column; align-items:center;}
+  h1{font-size:26px; font-weight:800; margin:0 0 6px; letter-spacing:-.5px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px;}
+  .grid{display:flex; flex-direction:column; gap:14px; width:100%; max-width:460px;}
+  a.card{display:flex; align-items:center; gap:16px; text-decoration:none;
+    background:#1e1e22; border:1px solid #303036; border-radius:18px; padding:20px 22px;
+    color:#fff; transition:background .15s;}
+  a.card:hover{background:#26262c;}
+  .n{font-size:30px; font-weight:800; color:#0a84ff; flex:none; width:44px; letter-spacing:-1px;}
+  .tt{font-size:18px; font-weight:700; letter-spacing:-.3px;}
+  .dd{font-size:13px; color:#9a9aa2; margin-top:3px; line-height:1.45;}
+  .arr{margin-left:auto; color:#5a5a62; font-size:22px;}
+  .todo{opacity:.5;}
+  .todo .n{color:#5a5a62;}
+  .note{margin-top:36px; font-size:12.5px; color:#76767e; max-width:460px; line-height:1.6; text-align:center;}
+</style>
+</head>
+<body>
+  <h1>himemap UX 목업</h1>
+  <p class="sub">검색 → 경로 추리기 → 출발 지점 → 탑승 → 다음 경로 · 단계별 화면</p>
+
+  <div class="grid">
+    <a class="card" href="/ux_stage1.html">
+      <span class="n">①</span>
+      <span>
+        <div class="tt">전체 경로</div>
+        <div class="dd">완성 경로 다 보여주고 어느 길로 갈지 고름 · 빠른 순 · 비례 막대 · 실시간 없음(계획)</div>
+      </span>
+      <span class="arr">›</span>
+    </a>
+
+    <a class="card" href="/ux_stage2.html">
+      <span class="n">②</span>
+      <span>
+        <div class="tt">그 정류장 집중</div>
+        <div class="dd">고른 출발 지점에서 강남역 가는 버스만 · 곧 오는 순 단순 리스트 · 실시간 "몇 분 후"</div>
+      </span>
+      <span class="arr">›</span>
+    </a>
+
+    <span class="card todo">
+      <span class="n">③</span>
+      <span>
+        <div class="tt">탑승 후 (작업 예정)</div>
+        <div class="dd">어디서 내릴지 타임라인 · 변동 시 그 지점 기준 재검색(도착지 불변)</div>
+      </span>
+      <span class="arr">·</span>
+    </span>
+  </div>
+
+  <p class="note">각 화면은 독립 HTML로 보존됩니다 (ux_stage1.html, ux_stage2.html …). 덮어쓰기로 사라지지 않음.<br>확정된 결정/원칙은 메모리(project_core_ux.md)에 텍스트로 누적. SwiftUI 코드 반영은 별도 단계.</p>
+</body>
+</html>

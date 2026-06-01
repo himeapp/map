@@ -1,0 +1,46 @@
+name: himemap
+options:
+  bundleIdPrefix: com.himemap
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Secrets.xcconfig
+  Release: Secrets.xcconfig
+
+targets:
+  himemap:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        includes:
+          - "*.swift"
+      - path: Assets.xcassets
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: himemap
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # --- API 키: 빌드 시 Secrets.xcconfig 값으로 $(...) 치환됨 ---
+        KAKAO_API_KEY: $(KAKAO_API_KEY)
+        ODSAY_API_KEY: $(ODSAY_API_KEY)
+        DATA_GO_KR_KEY: $(DATA_GO_KR_KEY)
+        SEOUL_OPEN_API_KEY: $(SEOUL_OPEN_API_KEY)
+        # --- 위치 권한 ---
+        NSLocationWhenInUseUsageDescription: 현재 위치를 출발지로 사용하기 위해 필요합니다
+        NSLocationAlwaysAndWhenInUseUsageDescription: 경로 안내 중 위치 추적에 사용됩니다
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        PRODUCT_BUNDLE_IDENTIFIER: com.himemap.app
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: 1
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"

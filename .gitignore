@@ -1,0 +1,13 @@
+# 실제 API 키 — 절대 커밋 금지
+Secrets.xcconfig
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+.DS_Store
+build/
+DerivedData/
+
+# XcodeGen 생성물
+*.xcodeproj
+Generated/
