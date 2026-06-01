@@ -54,13 +54,14 @@
   .destbar .t{font-size:16px; font-weight:700; color:var(--label); flex:1;}
   .destbar .edit{font-size:13px; font-weight:600; color:var(--sec); flex:none;}
 
-  /* 방향 바 : 이전 정류소 ▶ 현재 ▶ 다음 정류소 — 어느 방향 버스인지 보고 타라고 */
+  /* 방향 바 : 이전 정류소 ▶ 현재 ▶ 다음 정류소 — 정류소 안내판처럼 회색 띠 + 흰 글씨 */
+  .dirbar-wrap{padding:4px 16px 0; background:var(--bg);}
   .dirbar{display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:7px 16px 0; background:var(--bg);}
-  .dirbar .stop{font-size:12.5px; color:#a0a0a6; font-weight:500; white-space:nowrap;
+    background:#6b6f76; border-radius:10px; padding:8px 14px;}
+  .dirbar .stop{font-size:12.5px; color:rgba(255,255,255,.6); font-weight:500; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; max-width:96px; flex:none;}
-  .dirbar .here{font-size:12.5px; color:var(--label); font-weight:700; flex:none;}
-  .dirbar .arr{color:var(--blue); font-size:11px; flex:none; line-height:1;}
+  .dirbar .here{font-size:13px; color:#fff; font-weight:700; flex:none;}
+  .dirbar .arr{color:rgba(255,255,255,.85); font-size:11px; flex:none; line-height:1;}
   .od{display:flex; flex-direction:column; gap:2px; background:var(--bg);
     border-radius:14px; padding:12px 16px;}
   .od .r{display:flex; align-items:center; gap:10px; padding:6px 0;}
@@ -184,16 +185,17 @@
   .brow{cursor:pointer; position:relative;}
   .brow .go{margin-left:10px; color:#c4c9d0; font-size:16px; font-weight:600; flex:none; line-height:1;}
   .brow.sel{background:rgba(10,132,255,.06); border-radius:10px;}
-  /* 말풍선 */
-  .bubble{position:absolute; right:6px; top:50%; transform:translateY(-50%);
-    background:var(--blue); color:#fff; font-size:15px; font-weight:700;
-    padding:9px 16px; border-radius:22px; white-space:nowrap; cursor:pointer; z-index:6;
-    box-shadow:0 6px 16px rgba(10,132,255,.4); display:flex; align-items:center; gap:5px;
-    animation:pop .14s ease-out;}
-  .bubble::after{content:""; position:absolute; left:-6px; top:50%; transform:translateY(-50%);
-    border:7px solid transparent; border-right-color:var(--blue); border-left:none;}
-  @keyframes pop{from{opacity:0; transform:translateY(-50%) scale(.85);}
-    to{opacity:1; transform:translateY(-50%) scale(1);}}
+  /* 말풍선 : 유저가 누른 위치에 큼직한 흰 말풍선이 톡 (꼬리는 탭한 곳을 가리킴) */
+  .bubble{position:absolute; transform:translate(-50%,-100%);
+    background:#fff; color:var(--label); font-size:18px; font-weight:800;
+    padding:14px 24px; border-radius:26px; white-space:nowrap; cursor:pointer; z-index:20;
+    box-shadow:0 10px 30px rgba(0,0,0,.22); border:1px solid rgba(0,0,0,.05);
+    transform-origin:center bottom; animation:pop .16s ease-out;}
+  .bubble::after{content:""; position:absolute; left:50%; bottom:-9px; transform:translateX(-50%);
+    border:9px solid transparent; border-top-color:#fff; border-bottom:none;
+    filter:drop-shadow(0 3px 2px rgba(0,0,0,.06));}
+  @keyframes pop{from{opacity:0; transform:translate(-50%,-100%) scale(.8);}
+    to{opacity:1; transform:translate(-50%,-100%) scale(1);}}
 
   .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
     max-width:390px; text-align:center;}
@@ -228,12 +230,14 @@
       </div>
 
       <!-- 방향 : 이전 ▶ 여기 ▶ 다음 (어느 방향 버스 타는지) -->
+      <div class="dirbar-wrap">
       <div class="dirbar">
         <span class="stop">합정역</span>
         <span class="arr">▶</span>
         <span class="here">양화로입구</span>
         <span class="arr">▶</span>
         <span class="stop">당산역</span>
+      </div>
       </div>
 
       <!-- 도착지만 간단히 (정류장명은 위 top-bar에) -->
@@ -287,14 +291,15 @@
   </p>
 
   <script>
-    // 탭 = 탑승 선언 : 버스를 누르면 옆에 "탔어요" 말풍선이 톡 뜨고, 그걸 누르면 ③ 탑승 후로
+    // 탭 = 탑승 선언 : 버스를 누른 "그 자리"에 큼직한 흰 말풍선이 톡 → 누르면 ③ 탑승 후로
+    var screen=document.querySelector('.screen');
     function resetRows(){
       document.querySelectorAll('.brow.sel').forEach(function(r){
         r.classList.remove('sel');
-        var b=r.querySelector('.bubble'); if(b) b.remove();
         var bt=r.querySelector('.bt'); if(bt) bt.style.display='';
         var go=r.querySelector('.go'); if(go) go.style.display='';
       });
+      var b=screen.querySelector('.bubble'); if(b) b.remove();
     }
     document.querySelectorAll('.brow').forEach(function(row){
       row.addEventListener('click', function(e){
@@ -304,10 +309,14 @@
         row.classList.add('sel');
         row.querySelector('.bt').style.display='none';
         row.querySelector('.go').style.display='none';
+        // 말풍선은 .screen에 붙여 리스트 overflow에 안 잘리게, 누른 좌표에 띄움
         var bubble=document.createElement('span');
         bubble.className='bubble';
         bubble.textContent='탔어요';
-        row.appendChild(bubble);
+        screen.appendChild(bubble);
+        var s=screen.getBoundingClientRect();
+        bubble.style.left=(e.clientX-s.left)+'px';
+        bubble.style.top=(e.clientY-s.top-14)+'px';
         bubble.addEventListener('click', function(ev){ ev.stopPropagation(); location.href='/ux_stage3.html'; });
       });
     });
