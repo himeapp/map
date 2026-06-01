@@ -60,5 +60,15 @@
   </div>
 
   <p class="note">각 화면은 독립 HTML로 보존됩니다 (ux_stage1.html, ux_stage2.html …). 덮어쓰기로 사라지지 않음.<br>확정된 결정/원칙은 메모리(project_core_ux.md)에 텍스트로 누적. SwiftUI 코드 반영은 별도 단계.</p>
+
+  <script>
+    // Preview 샌드박스 iframe은 <a href> 네비게이션을 막아서, JS로 직접 이동시킴
+    document.querySelectorAll('a.card[href]').forEach(function(a){
+      a.addEventListener('click', function(e){
+        e.preventDefault();
+        location.href = a.getAttribute('href');
+      });
+    });
+  </script>
 </body>
 </html>
