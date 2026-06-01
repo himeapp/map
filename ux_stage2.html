@@ -53,6 +53,14 @@
   .destbar .lbl{font-size:12px; color:var(--sec); flex:none;}
   .destbar .t{font-size:16px; font-weight:700; color:var(--label); flex:1;}
   .destbar .edit{font-size:13px; font-weight:600; color:var(--sec); flex:none;}
+
+  /* 방향 바 : 이전 정류소 ▶ 현재 ▶ 다음 정류소 — 어느 방향 버스인지 보고 타라고 */
+  .dirbar{display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:7px 16px 0; background:var(--bg);}
+  .dirbar .stop{font-size:12.5px; color:#a0a0a6; font-weight:500; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:96px; flex:none;}
+  .dirbar .here{font-size:12.5px; color:var(--label); font-weight:700; flex:none;}
+  .dirbar .arr{color:var(--blue); font-size:11px; flex:none; line-height:1;}
   .od{display:flex; flex-direction:column; gap:2px; background:var(--bg);
     border-radius:14px; padding:12px 16px;}
   .od .r{display:flex; align-items:center; gap:10px; padding:6px 0;}
@@ -217,6 +225,15 @@
         <div class="iconBtn">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 8a5 5 0 11-1.5-3.5M13 2v3h-3" fill="none" stroke="#1c1c1e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
+      </div>
+
+      <!-- 방향 : 이전 ▶ 여기 ▶ 다음 (어느 방향 버스 타는지) -->
+      <div class="dirbar">
+        <span class="stop">합정역</span>
+        <span class="arr">▶</span>
+        <span class="here">양화로입구</span>
+        <span class="arr">▶</span>
+        <span class="stop">당산역</span>
       </div>
 
       <!-- 도착지만 간단히 (정류장명은 위 top-bar에) -->
