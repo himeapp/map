@@ -168,6 +168,16 @@
   .blist.lead .brow{border-bottom-color:#dbe6fb;}
 
   /* ---- stage ③ : 탑승 후 ---- */
+  /* 방금 탑승 확인 배너 — 앱이 '어느 740'을 잡았는지 눈으로 확인 + 어긋나면 보정 */
+  .boarded{display:flex; align-items:center; gap:10px; background:#eef4ff;
+    border-radius:14px; padding:11px 14px; margin:6px 2px 16px;}
+  .boarded .chk{width:22px; height:22px; border-radius:50%; background:var(--blue);
+    display:flex; align-items:center; justify-content:center; flex:none;}
+  .boarded .bd{flex:1; min-width:0;}
+  .boarded .b1{font-size:13px; font-weight:700; color:var(--label);}
+  .boarded .b1 b{color:var(--blue);}
+  .boarded .b2{font-size:12px; color:var(--sec); margin-top:2px;}
+  .boarded .fix{font-size:12.5px; font-weight:600; color:var(--sec); flex:none; white-space:nowrap;}
   .ride{margin:10px 2px 18px;}
   .ride .big{font-size:26px; font-weight:800; color:var(--label); letter-spacing:-.6px;}
   .ride .big b{color:var(--blue);}
@@ -246,6 +256,18 @@
       </div>
 
       <div class="body">
+        <!-- 방금 탑승: 앱이 잡은 그 차 한 대 — 어긋나면 보정 -->
+        <div class="boarded">
+          <span class="chk">
+            <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3L9.5 3.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <div class="bd">
+            <div class="b1"><b>740</b> 탑승 · 9:41 출발</div>
+            <div class="b2">양화로입구에서 방금 온 차</div>
+          </div>
+          <span class="fix">다른 차였어요?</span>
+        </div>
+
         <!-- 지금 상태: 언제 내릴지 -->
         <div class="ride">
           <div class="big"><b>강남역</b>에서 내려요</div>
