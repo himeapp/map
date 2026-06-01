@@ -167,6 +167,18 @@
   .blist.lead{background:#eef4ff;}
   .blist.lead .brow{border-bottom-color:#dbe6fb;}
 
+  /* 탭 = 탑승 : 행 자체가 "이거 탔어" 신호. 끝의 옅은 › 가 탭 가능 표시 */
+  .brow{cursor:pointer;}
+  .brow .go{margin-left:10px; color:#c4c9d0; font-size:16px; font-weight:600; flex:none; line-height:1;}
+  .brow.sel{background:rgba(10,132,255,.06); border-radius:10px;}
+  /* 선택 시 우측 확인 컨트롤 */
+  .cf{margin-left:auto; display:flex; align-items:center; gap:7px;}
+  .cf .q{font-size:13px; font-weight:700; color:var(--label);}
+  .cf .no{background:#e7e8ec; color:#5a5a62; border:none; font-size:13px; font-weight:600;
+    padding:7px 12px; border-radius:20px; cursor:pointer;}
+  .cf .yes{background:var(--blue); color:#fff; border:none; font-size:13px; font-weight:700;
+    padding:7px 13px; border-radius:20px; cursor:pointer; white-space:nowrap;}
+
   .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
     max-width:390px; text-align:center;}
   .note b{color:#fff;}
@@ -212,8 +224,8 @@
           <span class="t">고른 길</span>
         </div>
         <div class="blist lead">
-          <div class="brow"><span class="bn trunk">740</span><span class="bt soon">3분 후</span></div>
-          <div class="brow"><span class="bn trunk">421</span><span class="bt soon">5분 후</span></div>
+          <div class="brow"><span class="bn trunk">740</span><span class="bt soon">3분 후</span><span class="go">›</span></div>
+          <div class="brow"><span class="bn trunk">421</span><span class="bt soon">5분 후</span><span class="go">›</span></div>
         </div>
 
         <!-- 2순위 : 그 외 타도 되는 버스 — 곧 오는 순 -->
@@ -223,10 +235,10 @@
           <span class="h">· 곧 오는 순</span>
         </div>
         <div class="blist">
-          <div class="brow"><span class="bn trunk">401</span><span class="bt mid">9분 후</span></div>
-          <div class="brow"><span class="bn branch">3011</span><span class="bt late">12분 후</span></div>
-          <div class="brow"><span class="bn branch">6716</span><span class="bt late">14분 후</span></div>
-          <div class="brow"><span class="bn wide">9711</span><span class="bt late">17분 후</span></div>
+          <div class="brow"><span class="bn trunk">401</span><span class="bt mid">9분 후</span><span class="go">›</span></div>
+          <div class="brow"><span class="bn branch">3011</span><span class="bt late">12분 후</span><span class="go">›</span></div>
+          <div class="brow"><span class="bn branch">6716</span><span class="bt late">14분 후</span><span class="go">›</span></div>
+          <div class="brow"><span class="bn wide">9711</span><span class="bt late">17분 후</span><span class="go">›</span></div>
         </div>
       </div>
 
@@ -248,5 +260,36 @@
     실시간 "몇 분 후"는 여기선 안 띄움(계획 단계).<br>
     경로 행 = 총 소요 + 첫 출발 지점 + 도착시각 + 전체 여정 칩. 탭하면 <b>② 그 지점 집중 화면</b>으로.
   </p>
+
+  <script>
+    // 탭 = 탑승 : 행을 누르면 그 줄에서 "○○ 탔어요?" 확인 → 네 누르면 ③ 탑승 후로
+    function resetRows(){
+      document.querySelectorAll('.brow.sel').forEach(function(r){
+        r.classList.remove('sel');
+        var cf=r.querySelector('.cf'); if(cf) cf.remove();
+        var bt=r.querySelector('.bt'); if(bt) bt.style.display='';
+        var go=r.querySelector('.go'); if(go) go.style.display='';
+      });
+    }
+    document.querySelectorAll('.brow').forEach(function(row){
+      row.addEventListener('click', function(e){
+        if(e.target.closest('.cf')) return;       // 확인 버튼은 따로 처리
+        if(row.classList.contains('sel')) return; // 이미 선택됨
+        resetRows();
+        row.classList.add('sel');
+        var num=row.querySelector('.bn').textContent;
+        row.querySelector('.bt').style.display='none';
+        row.querySelector('.go').style.display='none';
+        var cf=document.createElement('span');
+        cf.className='cf';
+        cf.innerHTML='<span class="q">'+num+' 탔어요?</span>'
+          +'<button class="no">아니요</button>'
+          +'<button class="yes">네 ›</button>';
+        row.appendChild(cf);
+        cf.querySelector('.no').addEventListener('click', function(ev){ ev.stopPropagation(); resetRows(); });
+        cf.querySelector('.yes').addEventListener('click', function(ev){ ev.stopPropagation(); location.href='/ux_stage3.html'; });
+      });
+    });
+  </script>
 </body>
 </html>
