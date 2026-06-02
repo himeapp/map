@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — ① 전체 경로 (지도)</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:50px 0 70px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:-.4px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px; letter-spacing:-.1px;}
+
+  .phone{
+    width:390px; height:800px; background:#eee8db; border-radius:54px;
+    position:relative; overflow:hidden; border:12px solid #0b0b0d;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);
+  }
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%);
+    width:110px; height:32px; background:#000; border-radius:18px; z-index:60;}
+  .status{position:absolute; top:0; left:0; right:0; height:56px; z-index:55;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 32px 0; color:#1c1c1e;}
+  .status .time{font-size:16px; font-weight:600; letter-spacing:.2px; padding-left:8px;}
+  .status .ind{display:flex; align-items:center; gap:7px;}
+
+  #mapCanvas{position:absolute; inset:0; z-index:1; display:block;}
+
+  .top-overlay{
+    position:absolute; top:56px; left:0; right:0; z-index:10;
+    display:flex; align-items:center; gap:10px; padding:8px 16px 14px;
+    background:linear-gradient(to bottom,rgba(245,240,232,.90) 0%,rgba(245,240,232,0) 100%);
+    pointer-events:none;
+  }
+  .backBtn{
+    width:36px; height:36px; border-radius:50%;
+    background:rgba(255,255,255,.88); backdrop-filter:blur(6px);
+    box-shadow:0 1px 5px rgba(0,0,0,.15);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; flex:none; pointer-events:all;
+  }
+  .map-dest{
+    font-size:14px; font-weight:600; color:#1c1c1e;
+    background:rgba(255,255,255,.85); backdrop-filter:blur(6px);
+    padding:6px 12px; border-radius:20px;
+    box-shadow:0 1px 5px rgba(0,0,0,.13);
+    pointer-events:all;
+  }
+
+  /* Bottom Sheet */
+  #sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:20;
+    background:var(--card); border-radius:22px 22px 0 0;
+    box-shadow:0 -4px 20px rgba(0,0,0,.14);
+    display:flex; flex-direction:column;
+  }
+  .sheet-handle{
+    flex:none; display:flex; justify-content:center; padding:10px 0 6px; cursor:grab;
+    touch-action:none;
+  }
+  .handle-bar{width:40px; height:4px; border-radius:2px; background:#d1d1d6;}
+
+  /* Compact: selected card only (no O/D, no other cards) */
+  #compactCard{
+    flex:none; padding:0 16px 16px; display:none; cursor:pointer;
+  }
+  /* reuse .route styles — compact card looks identical to a route card */
+
+  /* Full list */
+  #sheetFull{flex:1; overflow-y:auto; padding:0 16px 20px; overscroll-behavior:contain;}
+
+  .od{display:flex; flex-direction:column; background:var(--bg);
+    border-radius:14px; padding:10px 16px; margin-bottom:14px;}
+  .od .r{display:flex; align-items:center; gap:10px; padding:6px 0;}
+  .od .dot{width:9px; height:9px; border-radius:50%; flex:none;}
+  .od .lbl{font-size:12px; color:var(--sec); width:34px; flex:none;}
+  .od .t{font-size:15px; font-weight:600; color:var(--label); flex:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .od .div{height:1px; background:var(--line); margin-left:53px;}
+  .od .swap{width:28px; height:28px; border-radius:50%; background:#e7e8ec;
+    display:flex; align-items:center; justify-content:center; flex:none;}
+
+  .seclabel{font-size:13px; font-weight:600; color:var(--sec); margin:4px 2px 10px; letter-spacing:-.2px;}
+
+  .route{background:#f4f5f7; border-radius:16px; padding:14px 16px;
+    margin-bottom:10px; border:2px solid transparent; cursor:pointer;
+    transition:border-color .15s, background .15s;}
+  .route.pick{background:#eef4ff; border-color:var(--blue);}
+  .rtop{display:flex; align-items:center; gap:8px;}
+  .rtop .tot{font-size:24px; font-weight:800; color:var(--label); letter-spacing:-.8px; line-height:1;}
+  .rtop .at{font-size:14px; font-weight:500; color:var(--sec);}
+  .tag{font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .tag.rec{background:rgba(10,132,255,.14); color:var(--blue);}
+  .rchev{margin-left:auto; flex:none;}
+  .rsum{font-size:13px; color:#6b7280; margin-top:7px;}
+  .rsum .adv{color:#e0820a; font-weight:600;}
+
+  .tl{display:flex; gap:3px; margin-top:10px; height:16px;}
+  .tl .sg{height:16px; border-radius:4px; display:flex; align-items:center;
+    justify-content:center; gap:3px; min-width:0; overflow:hidden; white-space:nowrap;
+    font-size:10px; font-weight:700; color:#fff; padding:0 5px;}
+  .tl .sg svg{flex:none; width:10px; height:10px;}
+  .sg.walk{background:#c4c9d0;}
+  .sg.bus{background:var(--blue);}
+  .sg.exp{background:#ff5a5f;}
+  .sg.sub{background:var(--green);}
+
+  .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
+    max-width:390px; text-align:center;}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>① 전체 경로</h1>
+  <p class="sub">실제 지도 스타일 · 시트 내리면 선택 카드만 · 탭하면 다시 올라옴</p>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span class="time">9:41</span>
+      <span class="ind">
+        <svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1c1c1e"/><rect x="5" y="5" width="3" height="6" rx="1" fill="#1c1c1e"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="#1c1c1e"/><rect x="15" y="0" width="3" height="11" rx="1" fill="#1c1c1e"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l7-7A9.8 9.8 0 008 1.5 9.8 9.8 0 001 4.5z" fill="none" stroke="#1c1c1e" stroke-width="1.4"/><circle cx="8" cy="9" r="1.4" fill="#1c1c1e"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x="1" y="1" width="20" height="10" rx="3" fill="none" stroke="#1c1c1e" stroke-opacity=".4"/><rect x="2.5" y="2.5" width="15" height="7" rx="1.5" fill="#1c1c1e"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="#1c1c1e" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <canvas id="mapCanvas"></canvas>
+
+    <div class="top-overlay">
+      <div class="backBtn">
+        <svg width="10" height="16" viewBox="0 0 10 16"><path d="M8 2L2 8l6 6" fill="none" stroke="#1c1c1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <div id="sheet">
+      <div class="sheet-handle" id="sheetHandle"><div class="handle-bar"></div></div>
+
+      <!-- compact: 선택된 카드 1개만. JS가 innerHTML을 채움 -->
+      <div id="compactCard" style="padding:0 16px 16px; display:none; cursor:pointer;"></div>
+
+      <div id="sheetFull">
+        <div class="od">
+          <div class="r"><span class="dot" style="background:var(--blue)"></span><span class="lbl">출발</span><span class="t">현재 위치</span><span class="swap"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M4 2v8M4 10L1.5 7.5M4 10l2.5-2.5M10 12V4M10 4l2.5 2.5M10 4L7.5 6.5" stroke="#1c1c1e" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="div" style="height:1px;background:var(--line);margin-left:53px;"></div>
+          <div class="r"><span class="dot" style="background:var(--purple)"></span><span class="lbl">도착</span><span class="t">강남역</span></div>
+        </div>
+
+        <div class="seclabel">경로 5개 · 빠른 순</div>
+
+        <div class="route pick" data-idx="0">
+          <div class="rtop"><span class="tot">41분</span><span class="at">· 10:23 도착</span><span class="tag rec">추천</span><span class="rchev"><svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="tl"><span class="sg walk" style="flex-grow:4"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>4분</span><span class="sg sub" style="flex-grow:36"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-4.42 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>36분</span><span class="sg walk" style="flex-grow:1"></span></div>
+          <div class="rsum">합정역 출발 · 도보 5분</div>
+        </div>
+
+        <div class="route" data-idx="1">
+          <div class="rtop"><span class="tot">47분</span><span class="at">· 10:29 도착</span><span class="rchev"><svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="#c4c9d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="tl"><span class="sg walk" style="flex-grow:6"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>6분</span><span class="sg bus" style="flex-grow:39"><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>39분</span><span class="sg walk" style="flex-grow:2"></span></div>
+          <div class="rsum">양화로입구 출발 · 도보 8분</div>
+        </div>
+
+        <div class="route" data-idx="2">
+          <div class="rtop"><span class="tot">49분</span><span class="at">· 10:31 도착</span><span class="rchev"><svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="#c4c9d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="tl"><span class="sg walk" style="flex-grow:4"></span><span class="sg sub" style="flex-grow:20"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-4.42 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>20분</span><span class="sg walk" style="flex-grow:3"></span><span class="sg sub" style="flex-grow:19"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-4.42 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>19분</span><span class="sg walk" style="flex-grow:3"></span></div>
+          <div class="rsum">합정역 출발 · 도보 7분 · <span class="adv">계단 많음</span></div>
+        </div>
+
+        <div class="route" data-idx="3">
+          <div class="rtop"><span class="tot">52분</span><span class="at">· 10:34 도착</span><span class="rchev"><svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="#c4c9d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="tl"><span class="sg walk" style="flex-grow:6"></span><span class="sg bus" style="flex-grow:18"><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>18분</span><span class="sg walk" style="flex-grow:4"></span><span class="sg sub" style="flex-grow:22"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-4.42 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>22분</span><span class="sg walk" style="flex-grow:2"></span></div>
+          <div class="rsum">양화로입구 출발 · 도보 8분 · <span class="adv">배차 긴 버스 포함</span></div>
+        </div>
+
+        <div class="route" data-idx="4">
+          <div class="rtop"><span class="tot">58분</span><span class="at">· 10:40 도착</span><span class="rchev"><svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" fill="none" stroke="#c4c9d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="tl"><span class="sg walk" style="flex-grow:9"></span><span class="sg exp" style="flex-grow:12"><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>12분</span><span class="sg walk" style="flex-grow:6"></span><span class="sg sub" style="flex-grow:29"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2c-4.42 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>29분</span><span class="sg walk" style="flex-grow:2"></span></div>
+          <div class="rsum">홍대입구역 출발 · 도보 11분 · <span class="adv">가파른 오르막</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    <b>① 전체 경로</b> — 실제 지도앱 스타일 맵 위 바텀시트.<br>
+    시트 내리면 선택 카드만 · 탭하면 다시 올라옴 · 카드 탭하면 지도 경로 교체.
+  </p>
+
+<script>
+const canvas = document.getElementById('mapCanvas');
+const phone  = canvas.parentElement;
+const W = phone.clientWidth, H = phone.clientHeight;
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext('2d');
+
+// Perspective: map fills full screen; route visible in top ~550px
+// (even when sheet is compact at ~590, the route spans up from dep)
+const HORIZON = 108;
+const DEP_Y   = 520;
+
+function proj(wx, wy) {
+  const sy = DEP_Y - (DEP_Y - HORIZON) * (2*wy - wy*wy);
+  const pf = Math.max(0, (sy - HORIZON) / (DEP_Y - HORIZON));
+  return { x: W/2 + wx * W * 0.52 * pf, y: sy };
+}
+
+const ROUTE_DATA = [
+  [{t:'walk',p:[{x:0,y:0},{x:-.05,y:.05},{x:-.12,y:.14}]},{t:'sub',p:[{x:-.12,y:.14},{x:-.14,y:.28},{x:-.11,y:.48},{x:-.04,y:.68},{x:.04,y:.82},{x:.02,y:.92}]},{t:'walk',p:[{x:.02,y:.92},{x:0,y:.97}]}],
+  [{t:'walk',p:[{x:0,y:0},{x:.1,y:.06},{x:.18,y:.14}]},{t:'bus',p:[{x:.18,y:.14},{x:.2,y:.28},{x:.17,y:.48},{x:.1,y:.68},{x:.04,y:.84},{x:0,y:.92}]},{t:'walk',p:[{x:0,y:.92},{x:0,y:.97}]}],
+  [{t:'walk',p:[{x:0,y:0},{x:-.08,y:.06},{x:-.14,y:.13}]},{t:'sub',p:[{x:-.14,y:.13},{x:-.16,y:.22},{x:-.18,y:.32},{x:-.18,y:.40}]},{t:'walk',p:[{x:-.18,y:.40},{x:-.14,y:.44},{x:-.12,y:.46}]},{t:'sub',p:[{x:-.12,y:.46},{x:-.08,y:.60},{x:-.03,y:.74},{x:0,y:.87},{x:0,y:.92}]},{t:'walk',p:[{x:0,y:.92},{x:0,y:.97}]}],
+  [{t:'walk',p:[{x:0,y:0},{x:.12,y:.07},{x:.17,y:.13}]},{t:'bus',p:[{x:.17,y:.13},{x:.2,y:.22},{x:.22,y:.32},{x:.22,y:.38}]},{t:'walk',p:[{x:.22,y:.38},{x:.18,y:.42},{x:.14,y:.45}]},{t:'sub',p:[{x:.14,y:.45},{x:.1,y:.60},{x:.04,y:.76},{x:0,y:.88},{x:0,y:.92}]},{t:'walk',p:[{x:0,y:.92},{x:0,y:.97}]}],
+  [{t:'walk',p:[{x:0,y:0},{x:-.16,y:.05},{x:-.24,y:.12}]},{t:'exp',p:[{x:-.24,y:.12},{x:-.27,y:.20},{x:-.28,y:.30},{x:-.26,y:.38}]},{t:'walk',p:[{x:-.26,y:.38},{x:-.20,y:.43},{x:-.18,y:.46}]},{t:'sub',p:[{x:-.18,y:.46},{x:-.12,y:.62},{x:-.05,y:.77},{x:0,y:.88},{x:0,y:.92}]},{t:'walk',p:[{x:0,y:.92},{x:0,y:.97}]}]
+];
+
+const SEG_COLOR = {walk:'#a0aab4', bus:'#0a84ff', sub:'#34c759', exp:'#ff5a5f'};
+const SEG_W = {walk:3, bus:7, sub:7, exp:7};
+
+function fillQ(b, pad) {
+  pad = pad || 0;
+  const tl=proj(b.x-pad,b.y-pad), tr=proj(b.x+b.w+pad,b.y-pad);
+  const bl=proj(b.x-pad,b.y+b.h+pad), br=proj(b.x+b.w+pad,b.y+b.h+pad);
+  ctx.beginPath();
+  ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawMap(ri) {
+  ctx.clearRect(0,0,W,H);
+
+  // Sky — pale blue haze
+  const sky = ctx.createLinearGradient(0,0,0,HORIZON+40);
+  sky.addColorStop(0,'#b8d8f0'); sky.addColorStop(1,'#d4eaf8');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,HORIZON+40);
+
+  // Ground base — warm beige
+  ctx.fillStyle='#ede8de'; ctx.fillRect(0,HORIZON,W,H-HORIZON);
+
+  // Horizon atmospheric blend
+  const hz=ctx.createLinearGradient(0,HORIZON-8,0,HORIZON+50);
+  hz.addColorStop(0,'rgba(184,216,240,0)');
+  hz.addColorStop(.35,'rgba(210,228,240,0.6)');
+  hz.addColorStop(1,'rgba(237,232,222,0)');
+  ctx.fillStyle=hz; ctx.fillRect(0,HORIZON-8,W,58);
+
+  // Parks (green)
+  ctx.fillStyle='#cce4b0';
+  [{x:-.54,y:.12,w:.17,h:.13},{x:.33,y:.17,w:.15,h:.10},
+   {x:-.38,y:.36,w:.13,h:.10},{x:.36,y:.44,w:.17,h:.12},
+   {x:-.50,y:.58,w:.15,h:.10},{x:.12,y:.62,w:.13,h:.09},
+   {x:-.20,y:.76,w:.12,h:.08}].forEach(b=>fillQ(b));
+
+  // Water (blue)
+  ctx.fillStyle='#aacce8';
+  [{x:-.62,y:.28,w:.10,h:.22},{x:.50,y:.32,w:.10,h:.16}].forEach(b=>fillQ(b));
+
+  // Buildings (light gray-beige)
+  ctx.fillStyle='#e2dbd0';
+  const bld=[
+    {x:-.44,y:.16,w:.12,h:.07},{x:-.44,y:.25,w:.10,h:.06},
+    {x:-.22,y:.20,w:.09,h:.06},{x:-.22,y:.28,w:.11,h:.05},
+    {x:.16,y:.18,w:.11,h:.07},{x:.16,y:.27,w:.09,h:.05},
+    {x:.26,y:.40,w:.12,h:.07},{x:-.34,y:.40,w:.10,h:.07},
+    {x:-.16,y:.50,w:.08,h:.05},{x:.08,y:.50,w:.09,h:.05},
+    {x:-.26,y:.64,w:.09,h:.05},{x:.20,y:.66,w:.10,h:.05},
+    {x:-.14,y:.74,w:.08,h:.04},{x:.10,y:.75,w:.08,h:.04},
+  ];
+  bld.forEach(b=>fillQ(b));
+  ctx.strokeStyle='#cec7ba'; ctx.lineWidth=0.5;
+  bld.forEach(b=>{
+    const tl=proj(b.x,b.y),tr=proj(b.x+b.w,b.y),bl=proj(b.x,b.y+b.h),br=proj(b.x+b.w,b.y+b.h);
+    ctx.beginPath(); ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y); ctx.closePath(); ctx.stroke();
+  });
+
+  // Minor roads
+  function latRoad(wy,col,lw){const l=proj(-1,wy),r=proj(1,wy);ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.moveTo(l.x,l.y);ctx.lineTo(r.x,r.y);ctx.stroke();}
+  function longRoad(wx,col,lw){const b=proj(wx,0);ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.moveTo(W/2,HORIZON);ctx.lineTo(b.x,b.y);ctx.stroke();}
+
+  [-.62,-.36,-.12,.12,.36,.62].forEach(wx=>longRoad(wx,'#ddd5c5',1.5));
+  [.07,.16,.26,.38,.52,.66,.80].forEach(wy=>latRoad(wy,'#ddd5c5',1.5));
+  // Major roads — white
+  [0,-.30,.30].forEach(wx=>longRoad(wx,'#fff',5));
+  [.22,.46,.70].forEach(wy=>latRoad(wy,'#fff',5));
+  // Road edge
+  ctx.lineWidth=0.7;
+  [0,-.30,.30].forEach(wx=>longRoad(wx,'#cec7ba',0.7));
+
+  // Route shadow (non-walk only)
+  ROUTE_DATA[ri].forEach(seg=>{
+    if(seg.t==='walk') return;
+    ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=SEG_W[seg.t]+5;
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.setLineDash([]);
+    const fp=proj(seg.p[0].x,seg.p[0].y); ctx.moveTo(fp.x,fp.y);
+    seg.p.slice(1).forEach(pt=>{const q=proj(pt.x,pt.y);ctx.lineTo(q.x,q.y);});
+    ctx.stroke();
+  });
+
+  // Route color
+  ROUTE_DATA[ri].forEach(seg=>{
+    ctx.beginPath(); ctx.strokeStyle=SEG_COLOR[seg.t]; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.lineWidth=seg.t==='walk'?2.5:SEG_W[seg.t];
+    ctx.setLineDash(seg.t==='walk'?[4,6]:[]);
+    const fp=proj(seg.p[0].x,seg.p[0].y); ctx.moveTo(fp.x,fp.y);
+    seg.p.slice(1).forEach(pt=>{const q=proj(pt.x,pt.y);ctx.lineTo(q.x,q.y);});
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+
+  // Destination pin
+  const dest=proj(0,.90);
+  ctx.shadowColor='rgba(0,0,0,.2)'; ctx.shadowBlur=6; ctx.shadowOffsetY=2;
+  ctx.beginPath(); ctx.arc(dest.x,dest.y-13,12,0,Math.PI*2); ctx.fillStyle='#bf5af2'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(dest.x-6,dest.y-7); ctx.lineTo(dest.x+6,dest.y-7); ctx.lineTo(dest.x,dest.y-1); ctx.closePath(); ctx.fillStyle='#bf5af2'; ctx.fill();
+  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  ctx.fillStyle='#fff'; ctx.font='bold 9px -apple-system,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('도착',dest.x,dest.y-13);
+
+  // Departure dot
+  const dep=proj(0,0);
+  const g=ctx.createRadialGradient(dep.x,dep.y,5,dep.x,dep.y,22);
+  g.addColorStop(0,'rgba(10,132,255,.3)'); g.addColorStop(1,'rgba(10,132,255,0)');
+  ctx.beginPath(); ctx.arc(dep.x,dep.y,22,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+  ctx.beginPath(); ctx.arc(dep.x,dep.y,11,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(dep.x,dep.y,8,0,Math.PI*2); ctx.fillStyle='#0a84ff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(dep.x,dep.y,3.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+// Sheet
+const sheet=document.getElementById('sheet');
+const sheetHandle=document.getElementById('sheetHandle');
+const sheetFull=document.getElementById('sheetFull');
+const compactCard=document.getElementById('compactCard');
+
+// 2 snap positions only: full list vs. one-card compact
+const SNAP_FULL=300, SNAP_COMPACT=455;
+let sheetTop=SNAP_FULL, dragging=false, dragStartY=0, dragStartTop=0;
+
+function applySnap(top,animate){
+  sheetTop=Math.max(SNAP_FULL,Math.min(SNAP_COMPACT+20,top));
+  sheet.style.transition=animate?'top .28s cubic-bezier(.25,.8,.25,1)':'none';
+  sheet.style.top=sheetTop+'px';
+  sheetFull.style.maxHeight=Math.max(0,H-sheetTop-48)+'px';
+}
+
+function setCompact(on){
+  compactCard.style.display=on?'block':'none';
+  sheetFull.style.display=on?'none':'block';
+}
+
+applySnap(SNAP_FULL,false); setCompact(false);
+
+function pY(e){return e.touches?e.touches[0].clientY:e.clientY;}
+sheetHandle.addEventListener('mousedown',onDown);
+sheetHandle.addEventListener('touchstart',onDown,{passive:true});
+
+function onDown(e){dragging=true;dragStartY=pY(e);dragStartTop=sheetTop;document.addEventListener('mousemove',onMove);document.addEventListener('touchmove',onMove,{passive:false});document.addEventListener('mouseup',onUp);document.addEventListener('touchend',onUp);}
+function onMove(e){if(!dragging)return;if(e.cancelable)e.preventDefault();applySnap(dragStartTop+pY(e)-dragStartY,false);}
+function onUp(){
+  dragging=false;
+  document.removeEventListener('mousemove',onMove);document.removeEventListener('touchmove',onMove);document.removeEventListener('mouseup',onUp);document.removeEventListener('touchend',onUp);
+  const snap=sheetTop>(SNAP_FULL+SNAP_COMPACT)/2?SNAP_COMPACT:SNAP_FULL;
+  applySnap(snap,true);
+  if(snap===SNAP_COMPACT){setTimeout(()=>setCompact(true),280);}
+  else{setCompact(false);}
+}
+
+// Tap compact card → re-expand
+compactCard.addEventListener('click',()=>{applySnap(SNAP_FULL,true);setTimeout(()=>setCompact(false),280);});
+
+// Mirror selected card into compactCard
+function updateCompactCard(idx){
+  const src=document.querySelector(`.route[data-idx="${idx}"]`);
+  if(!src) return;
+  compactCard.innerHTML=`<div class="route pick" style="margin-bottom:0">${src.innerHTML}</div>`;
+}
+
+let selectedIdx=0;
+document.querySelectorAll('.route').forEach(card=>{
+  card.addEventListener('click',()=>{
+    const idx=parseInt(card.dataset.idx);
+    if(idx===selectedIdx)return;
+    selectedIdx=idx;
+    document.querySelectorAll('.route').forEach(c=>c.classList.remove('pick'));
+    card.classList.add('pick');
+    updateCompactCard(idx);
+    drawMap(idx);
+  });
+});
+
+updateCompactCard(0);
+drawMap(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — 정류소까지 도보</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:36px 0 60px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:-.4px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px; letter-spacing:-.1px;}
+
+  /* ── 폰 ── */
+  .phone{
+    width:390px; height:720px; border-radius:54px;
+    position:relative; overflow:hidden; border:12px solid #0b0b0d;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);
+  }
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%);
+    width:214px; height:34px; background:#000; border-radius:18px; z-index:60;
+    display:flex; align-items:center; justify-content:center; gap:7px; padding:0 14px;}
+  .island-dot{width:7px; height:7px; border-radius:50%; background:#bf5af2; flex:none;}
+  .island-txt{font-size:12px; font-weight:600; color:#fff; letter-spacing:-.2px; white-space:nowrap;}
+  .status{position:absolute; top:0; left:0; right:0; height:56px; z-index:55;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 32px 0; color:#fff; /* 지도 위 → 흰 글씨 */}
+  .status .time{font-size:16px; font-weight:600; letter-spacing:.2px; padding-left:8px;
+    text-shadow:0 1px 3px rgba(0,0,0,.4);}
+  .status .ind{display:flex; align-items:center; gap:7px; filter:brightness(10);}
+
+  /* ── 지도 배경 (풀스크린) ── */
+  .map{
+    position:absolute; inset:0;
+    background:
+      /* 도로망 격자 */
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #c8d5c0 39px, #c8d5c0 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 59px, #c8d5c0 59px, #c8d5c0 60px),
+      /* 지도 배경 그린 톤 */
+      linear-gradient(160deg, #dde8d4 0%, #cfdfc5 40%, #d8e8ce 100%);
+    z-index:0;
+  }
+
+  /* 큰 도로 (가로/세로 하나씩) */
+  .map-road-h{
+    position:absolute; left:0; right:0; top:52%; height:14px;
+    background:#f0ede4; box-shadow:0 1px 0 #ddd9cc, 0 -1px 0 #ddd9cc;
+  }
+  .map-road-v{
+    position:absolute; top:0; bottom:0; left:38%; width:12px;
+    background:#f0ede4; box-shadow:1px 0 0 #ddd9cc, -1px 0 0 #ddd9cc;
+  }
+
+  /* 블록들 (건물군) */
+  .map-block{
+    position:absolute; border-radius:4px;
+    background:#c8d6bd; opacity:.7;
+  }
+
+  /* 도보 경로선 */
+  .walk-path{
+    position:absolute;
+    top:310px; left:80px;
+    width:175px; height:110px;
+    border:3px dashed var(--blue);
+    border-right:none; border-bottom:none;
+    border-radius:12px 0 0 0;
+    z-index:2;
+  }
+
+  /* 현재 위치 마커 */
+  .marker-me{
+    position:absolute; top:400px; left:68px;
+    width:22px; height:22px; z-index:10;
+    transform:translate(-50%,-50%);
+  }
+  .marker-me .dot{
+    width:22px; height:22px; border-radius:50%; background:var(--blue);
+    border:3px solid #fff; box-shadow:0 2px 8px rgba(10,132,255,.5);
+  }
+  .marker-me .pulse{
+    position:absolute; inset:-8px; border-radius:50%;
+    background:rgba(10,132,255,.2);
+    animation:pulse 1.8s ease-out infinite;
+  }
+
+  /* 정류소 마커 */
+  .marker-stop{
+    position:absolute; top:170px; left:225px;
+    z-index:10; transform:translate(-50%,-100%);
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .marker-stop .pin{
+    width:36px; height:36px; border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+    background:var(--blue); border:3px solid #fff;
+    box-shadow:0 3px 10px rgba(0,0,0,.3);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .marker-stop .pin svg{transform:rotate(45deg);}
+  .marker-stop .callout{
+    background:#fff; border-radius:10px; padding:5px 10px;
+    font-size:12px; font-weight:700; color:var(--label);
+    box-shadow:0 2px 8px rgba(0,0,0,.15); white-space:nowrap;
+    margin-bottom:6px;
+  }
+  .marker-stop .callout .sub{font-size:10.5px; color:var(--blue); font-weight:600; margin-top:1px;}
+
+  /* 목적지 마커 (멀리) */
+  .marker-dest{
+    position:absolute; top:90px; right:60px;
+    z-index:5; display:flex; flex-direction:column; align-items:center;
+  }
+  .marker-dest .pin2{
+    width:28px; height:28px; border-radius:50%;
+    background:var(--purple); border:2.5px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.2);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .marker-dest .label2{
+    background:rgba(255,255,255,.9); border-radius:8px; padding:3px 8px;
+    font-size:11px; font-weight:600; color:var(--label); margin-bottom:5px;
+    box-shadow:0 1px 4px rgba(0,0,0,.1); white-space:nowrap;
+  }
+
+  /* 나침반 */
+  .compass{
+    position:absolute; top:70px; right:16px; z-index:20;
+    width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.88);
+    box-shadow:0 2px 8px rgba(0,0,0,.2);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ── 하단 모달 ── */
+  .modal{
+    position:absolute; bottom:0; left:0; right:0; z-index:30;
+    background:var(--card); border-radius:24px 24px 0 0;
+    box-shadow:0 -4px 24px rgba(0,0,0,.18);
+    padding:0 0 28px;
+    /* 모달 높이는 콘텐츠에 맞게 자동 */
+  }
+  /* 드래그 핸들 */
+  .handle{
+    width:36px; height:4px; border-radius:2px; background:#d0d0d5;
+    margin:10px auto 0;
+  }
+
+  /* 모달 내부 */
+  .modal-inner{padding:16px 20px 0;}
+
+  /* 헤더 행: 방향 + 시간 */
+  .modal-header{display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px;}
+  .modal-dir{
+    display:flex; align-items:center; gap:12px;
+  }
+  .dir-circle{
+    width:46px; height:46px; border-radius:50%; background:var(--blue);
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .modal-dir-text .big{font-size:20px; font-weight:800; color:var(--label); letter-spacing:-.4px;}
+  .modal-dir-text .sm{font-size:13px; color:var(--sec); margin-top:3px;}
+  .modal-eta{text-align:right;}
+  .modal-eta .num{font-size:32px; font-weight:800; color:var(--label); line-height:1; letter-spacing:-1px;}
+  .modal-eta .unit{font-size:14px; color:var(--sec);}
+  .modal-eta .dist{font-size:12.5px; color:var(--sec); margin-top:2px;}
+
+  /* 진행 바 */
+  .prog-wrap{margin-bottom:16px;}
+  .prog-track{height:5px; background:#e9e9ed; border-radius:3px; overflow:hidden;}
+  .prog-fill{height:100%; width:22%; background:var(--blue); border-radius:3px;}
+
+  /* 구분선 */
+  .divider{height:1px; background:var(--line); margin:0 -20px 14px;}
+
+  /* 목적 정류소 행 */
+  .stop-row{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .stop-badge{
+    width:40px; height:40px; border-radius:12px; background:rgba(10,132,255,.1);
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .stop-row-text .name{font-size:15px; font-weight:700; color:var(--label);}
+  .stop-row-text .meta{font-size:12.5px; color:var(--sec); margin-top:2px;}
+  /* 버스 도착 예고 뱃지 */
+  .bus-eta{
+    margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:3px;
+  }
+  .bus-chip{
+    font-size:12px; font-weight:700; padding:3px 9px; border-radius:20px;
+    background:rgba(52,199,89,.12); color:#1a9e40; white-space:nowrap;
+  }
+  .bus-chip.mid{background:rgba(255,159,10,.12); color:var(--orange);}
+
+  @keyframes pulse{
+    0%{transform:scale(.6); opacity:.8}
+    100%{transform:scale(2.2); opacity:0}
+  }
+
+  .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
+    max-width:390px; text-align:center;}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>① → ② 전환 — 정류소까지 도보</h1>
+  <p class="sub">지도 풀스크린 + 하단 모달 · 드래그로 지도 넓히기</p>
+
+  <div class="phone">
+    <div class="island"><div class="island-dot" style="background:#8a8a8e"></div><span class="island-txt">양화로입구 정류소로 도보</span></div>
+    <div class="status">
+      <span class="time">9:41</span>
+      <span class="ind">
+        <svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1c1c1e"/><rect x="5" y="5" width="3" height="6" rx="1" fill="#1c1c1e"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="#1c1c1e"/><rect x="15" y="0" width="3" height="11" rx="1" fill="#1c1c1e"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l7-7A9.8 9.8 0 008 1.5 9.8 9.8 0 001 4.5z" fill="none" stroke="#1c1c1e" stroke-width="1.4"/><circle cx="8" cy="9" r="1.4" fill="#1c1c1e"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x="1" y="1" width="20" height="10" rx="3" fill="none" stroke="#1c1c1e" stroke-opacity=".4"/><rect x="2.5" y="2.5" width="15" height="7" rx="1.5" fill="#1c1c1e"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="#1c1c1e" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <!-- ── 지도 ── -->
+    <div class="map">
+      <!-- 도로 -->
+      <div class="map-road-h"></div>
+      <div class="map-road-v"></div>
+      <!-- 건물 블록들 -->
+      <div class="map-block" style="top:60px;left:20px;width:80px;height:55px"></div>
+      <div class="map-block" style="top:60px;left:115px;width:60px;height:45px"></div>
+      <div class="map-block" style="top:60px;left:260px;width:70px;height:50px"></div>
+      <div class="map-block" style="top:130px;left:20px;width:55px;height:40px"></div>
+      <div class="map-block" style="top:130px;left:250px;width:85px;height:55px"></div>
+      <div class="map-block" style="top:290px;left:20px;width:90px;height:60px"></div>
+      <div class="map-block" style="top:290px;left:180px;width:60px;height:45px"></div>
+      <div class="map-block" style="top:290px;left:265px;width:75px;height:55px"></div>
+      <div class="map-block" style="top:370px;left:20px;width:60px;height:40px"></div>
+      <div class="map-block" style="top:370px;left:180px;width:80px;height:50px"></div>
+    </div>
+
+    <!-- 도보 경로 점선 -->
+    <div class="walk-path"></div>
+
+    <!-- 현재 위치 마커 -->
+    <div class="marker-me">
+      <div class="pulse"></div>
+      <div class="dot"></div>
+    </div>
+
+    <!-- 정류소 마커 (목표 지점) -->
+    <div class="marker-stop">
+      <div class="callout">
+        양화로입구 정류소
+        <div class="sub">740 · 3분 후</div>
+      </div>
+      <div class="pin">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>
+      </div>
+    </div>
+
+    <!-- 목적지 마커 (멀리) -->
+    <div class="marker-dest">
+      <div class="label2">올리브영 강남점</div>
+      <div class="pin2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      </div>
+    </div>
+
+    <!-- 나침반 -->
+    <div class="compass">
+      <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 2L9 9l-7 3 7 3 3 7 3-7 7-3-7-3z" fill="#ff3b30"/><path d="M12 2L9 9l3-1z" fill="#ff3b30"/></svg>
+    </div>
+
+    <!-- ── 하단 모달 ── -->
+    <div class="modal">
+      <div class="handle"></div>
+      <div class="modal-inner">
+
+        <!-- 방향 + ETA -->
+        <div class="modal-header">
+          <div class="modal-dir">
+            <div class="dir-circle">
+              <!-- 위쪽 화살표 (직진) -->
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+            </div>
+            <div class="modal-dir-text">
+              <div class="big">직진 후 좌회전</div>
+              <div class="sm">양화로 방향 · 80m 앞</div>
+            </div>
+          </div>
+          <div class="modal-eta">
+            <div class="num">4<span style="font-size:18px;font-weight:600;color:var(--sec)">분</span></div>
+            <div class="dist">290m 남음</div>
+          </div>
+        </div>
+
+        <!-- 진행 바 -->
+        <div class="prog-wrap">
+          <div class="prog-track"><div class="prog-fill"></div></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 목적 정류소 -->
+        <div class="stop-row">
+          <div class="stop-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#0a84ff"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>
+          </div>
+          <div class="stop-row-text">
+            <div class="name">양화로입구 정류소</div>
+            <div class="meta">탑승 정류소 · 합정역 방향</div>
+          </div>
+          <div class="bus-eta">
+            <div class="bus-chip">740 · 3분 후</div>
+            <div class="bus-chip mid">421 · 6분 후</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    <b>도보 안내</b> — 지도 풀스크린 위에 모달이 올라온 구조.<br>
+    지도에는 현재 위치(파란 점), 정류소(버스 핀), 목적지(보라 핀)가 모두 보임.<br>
+    모달 드래그 다운 → 지도 전체 보기. 정류소 도착 시 <b>② 정류소 실시간</b>으로 자동 전환.
+  </p>
+</body>
+</html>

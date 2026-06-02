@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — ③ 탑승 후 (지하철)</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed;
+    --sub2:#009844; /* 2호선 초록 */
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:30px 0 40px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:-.4px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px; letter-spacing:-.1px;}
+
+  /* ── 폰 ── */
+  .phone{
+    width:390px; height:750px; background:#1a2535; border-radius:54px;
+    position:relative; overflow:hidden; border:12px solid #0b0b0d;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);
+    zoom:0.87;
+  }
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%);
+    width:110px; height:32px; background:#000; border-radius:18px; z-index:60;}
+  .status{position:absolute; top:0; left:0; right:0; height:56px; z-index:55;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 32px 0;}
+  .status .time{font-size:16px; font-weight:600; color:#fff; padding-left:8px;}
+  .status .ind{display:flex; align-items:center; gap:7px;}
+
+  /* ── 지도 레이어 ── */
+  .map-layer{position:absolute; inset:0; z-index:1; background:#1e2d40; overflow:hidden;}
+  .map-layer canvas{position:absolute; inset:0; width:100%; height:100%;}
+
+  .loc-pulse{position:absolute; z-index:4; width:18px; height:18px; border-radius:50%;
+    background:rgba(10,132,255,.35); left:47%; top:52%;
+    animation:pulse 1.8s ease-out infinite;}
+  .loc-dot{position:absolute; z-index:5; width:14px; height:14px; border-radius:50%;
+    background:var(--blue); border:2.5px solid #fff; box-shadow:0 0 8px rgba(10,132,255,.6);
+    left:47%; top:52%; transform:translate(-50%,-50%);}
+  @keyframes pulse{
+    0%{transform:translate(-50%,-50%) scale(1); opacity:.7;}
+    100%{transform:translate(-50%,-50%) scale(2.6); opacity:0;}
+  }
+  .dest-pin{position:absolute; z-index:5; left:62%; top:26%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center;}
+  .dest-pin .pin-label{background:var(--purple); color:#fff; font-size:11px; font-weight:700;
+    padding:4px 9px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .dest-pin .pin-tail{width:2px; height:8px; background:var(--purple); margin-top:1px;}
+  .dest-pin .pin-dot{width:8px; height:8px; border-radius:50%; background:var(--purple);}
+
+  /* 지도 위 칩 */
+  .map-chip{
+    position:absolute; top:66px; left:50%; transform:translateX(-50%); z-index:6;
+    background:rgba(10,10,15,.75); backdrop-filter:blur(12px);
+    border-radius:20px; padding:7px 14px;
+    display:flex; align-items:center; gap:8px;
+    border:1px solid rgba(255,255,255,.1); white-space:nowrap;
+  }
+  .map-chip .sub-badge{
+    color:#fff; font-size:13px; font-weight:800; padding:3px 10px; border-radius:12px;
+    background:var(--sub2);
+  }
+  .map-chip .chip-txt{font-size:13px; color:#fff; font-weight:600;}
+  .map-chip .chip-time{font-size:13px; font-weight:800; color:var(--green);}
+
+  /* ── 바텀 시트 ── */
+  .sheet{
+    position:absolute; left:0; right:0; bottom:100px; z-index:20;
+    background:var(--bg); border-radius:28px 28px 0 0;
+    box-shadow:0 -4px 30px rgba(0,0,0,.18);
+    height:520px; display:flex; flex-direction:column;
+  }
+  .sheet-handle-wrap{padding:10px 0 2px; display:flex; justify-content:center; flex:none; cursor:pointer;}
+  .sheet-handle{width:36px; height:4px; border-radius:3px; background:#d0d0d6;}
+  .sheet-scroll{flex:1; overflow-y:auto; padding:0 16px 0;}
+
+  /* top bar */
+  .top-bar{display:flex; align-items:center; gap:8px;
+    padding:6px 0 12px; border-bottom:1px solid var(--line); margin-bottom:4px;}
+  .backBtn{display:flex; align-items:center; gap:6px; flex:none;}
+  .desthead{flex:1;}
+  .desthead .t{font-size:13px; font-weight:500; color:var(--sec);}
+  .desthead .t b{color:var(--label);}
+  .iconBtn{width:36px; height:36px; border-radius:50%; background:#e7e8ec;
+    display:flex; align-items:center; justify-content:center; flex:none;}
+
+  /* 호선 뱃지 + 하차 안내 */
+  .sub-line-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 12px 4px 6px; border-radius:20px;
+    background:var(--sub2); color:#fff;
+    font-size:15px; font-weight:800; margin-bottom:8px;
+  }
+  .sub-line-badge .circle{
+    width:24px; height:24px; border-radius:50%; background:rgba(0,0,0,.2);
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:900;
+  }
+
+  .ride{margin:2px 2px 20px;}
+  .ride .big{font-size:26px; font-weight:800; color:var(--label); letter-spacing:-.6px;}
+  .ride .big b{color:var(--sub2);}
+  .ride .rsub{font-size:14.5px; color:var(--sec); margin-top:6px; font-weight:500;}
+
+  /* ── 가로 노선도 ── */
+  .route-map-wrap{
+    margin:0 -16px 20px;
+    overflow:hidden;
+    position:relative;
+    padding:30px 0 16px;
+    /* 상하 페이드아웃 마스크 */
+    -webkit-mask-image:linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+    mask-image:linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+  }
+
+  /* 흘러가는 트랙 */
+  .route-track{
+    display:flex; align-items:center;
+    transform:translateX(-188px);
+    animation:slide-left 480s linear infinite;
+    position:relative;
+  }
+  @keyframes slide-left{
+    0%  { transform:translateX(-188px); }
+    100%{ transform:translateX(-484px); }
+  }
+  /* 296px = 역 4칸 거리 · 실제 약 8분 → 480s */
+
+  /* 굵은 기준선 — 트랙 중앙에 깔림 */
+  .route-line{
+    position:absolute; left:0; right:0;
+    top:50%; transform:translateY(-50%);
+    height:8px; border-radius:4px;
+    background:linear-gradient(to right,
+      #c8ccd4 0%, #c8ccd4 37%,       /* 지나온 구간 회색 */
+      var(--sub2) 37%, var(--sub2) 100% /* 앞으로 초록 */
+    );
+    z-index:0;
+    /* 전체 트랙만큼 충분히 길게 */
+    width:900px;
+  }
+
+  /* 역 하나 */
+  .stn{
+    display:flex; flex-direction:column; align-items:center;
+    position:relative; z-index:1; flex:none;
+    width:74px;
+  }
+  /* 역명 위에 */
+  .stn-name{
+    font-size:11px; font-weight:600; color:#b0b4bc;
+    white-space:nowrap; margin-bottom:10px; text-align:center;
+  }
+  .stn-name.current{ color:var(--sub2); font-weight:800; font-size:12.5px; }
+  .stn-name.exit   { color:var(--label); font-weight:700; font-size:12px; }
+
+  /* 원 */
+  .stn-dot{
+    width:13px; height:13px; border-radius:50%;
+    background:#d0d4da; border:2.5px solid #fff;
+    flex:none; z-index:2;
+  }
+  .stn-dot.current{
+    width:20px; height:20px;
+    background:var(--sub2); border:3px solid #fff;
+    box-shadow:0 0 0 5px rgba(0,152,68,.2);
+    animation:spulse 1.6s ease-out infinite;
+  }
+  .stn-dot.exit{
+    width:16px; height:16px;
+    background:#fff; border:3px solid var(--label);
+  }
+  @keyframes spulse{
+    0%  { box-shadow:0 0 0 4px rgba(0,152,68,.28); }
+    100%{ box-shadow:0 0 0 10px rgba(0,152,68,.0); }
+  }
+
+  /* 구분선 */
+  .divider{height:1px; background:var(--line); margin:4px -16px 14px;}
+
+  /* 하차 박스 */
+  .getoff{background:#eef4ff; border:1.5px solid var(--blue); border-radius:14px;
+    padding:11px 14px; margin-bottom:16px;}
+  .getoff .g1{font-size:12px; font-weight:700; color:var(--blue); letter-spacing:.2px;}
+  .getoff .g2{font-size:18px; font-weight:800; color:var(--label); margin-top:2px;}
+  .getoff .g3{font-size:12.5px; color:var(--sec); margin-top:3px;}
+
+  /* 방향 정보 */
+  .dir-row{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .dir-chip{font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px;
+    background:rgba(0,152,68,.1); color:var(--sub2);}
+  .dir-text{font-size:13px; color:var(--sec);}
+
+  /* 긴급 카드 */
+  .emergency-area{
+    position:absolute; left:0; right:0; bottom:0; z-index:30;
+    padding:8px 16px 14px; border-top:1px solid var(--line); background:var(--bg);
+  }
+  .emergency-card{background:#fff8f0; border:1.5px solid #ff9f0a; border-radius:16px;
+    padding:14px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;}
+  .em-icon{width:38px; height:38px; border-radius:50%; background:#ff9f0a;
+    display:flex; align-items:center; justify-content:center; flex:none;}
+  .em-body{flex:1;}
+  .em-title{font-size:14px; font-weight:700; color:#1c1c1e;}
+  .em-sub{font-size:12px; color:#8a8a8e; margin-top:2px;}
+  .em-btn{background:#ff9f0a; color:#fff; font-size:12px; font-weight:700;
+    padding:7px 12px; border-radius:10px; flex:none; white-space:nowrap;}
+
+  .note{margin-top:28px; font-size:13px; color:#9a9aa2; line-height:1.6;
+    max-width:390px; text-align:center;}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>③ 탑승 후 — 지하철</h1>
+  <p class="sub">가로 노선도 · 지나온 역 회색 · 현재역 초록 · 하차역 강조</p>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span class="time">10:10</span>
+      <span class="ind">
+        <svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#fff"/><rect x="5" y="5" width="3" height="6" rx="1" fill="#fff"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="#fff"/><rect x="15" y="0" width="3" height="11" rx="1" fill="#fff"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l7-7A9.8 9.8 0 008 1.5 9.8 9.8 0 001 4.5z" fill="none" stroke="#fff" stroke-width="1.4"/><circle cx="8" cy="9" r="1.4" fill="#fff"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x="1" y="1" width="20" height="10" rx="3" fill="none" stroke="#fff" stroke-opacity=".4"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5" fill="#fff"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="#fff" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <!-- 지도 -->
+    <div class="map-layer"><canvas id="mapCanvas"></canvas></div>
+    <div class="loc-pulse"></div>
+    <div class="loc-dot"></div>
+    <div class="dest-pin">
+      <div class="pin-label">올리브영 강남점</div>
+      <div class="pin-tail"></div>
+      <div class="pin-dot"></div>
+    </div>
+
+    <!-- 지도 위 칩 -->
+    <div class="map-chip">
+      <span class="sub-badge">2호선</span>
+      <span class="chip-txt">건대입구까지</span>
+      <span class="chip-time">3정거장</span>
+    </div>
+
+    <!-- 바텀 시트 -->
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle-wrap" id="handleWrap">
+        <div class="sheet-handle"></div>
+      </div>
+      <div class="sheet-scroll">
+
+        <!-- top bar -->
+        <div class="top-bar">
+          <div class="backBtn">
+            <svg width="10" height="16" viewBox="0 0 10 16"><path d="M8 2L2 8l6 6" fill="none" stroke="#1c1c1e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="desthead">
+            <span class="t"><b>올리브영 강남점</b> 가는 중</span>
+          </div>
+        </div>
+
+        <!-- 호선 뱃지 -->
+        <div class="sub-line-badge">2호선</div>
+
+        <!-- 하차 안내 -->
+        <div class="ride">
+          <div class="big">건대입구에서 내려요</div>
+          <div class="rsub">3 정거장 남음 · 약 8분 후</div>
+        </div>
+
+        <!-- ── 가로 노선도 ── -->
+        <div class="route-map-wrap">
+          <div class="route-track" id="routeTrack">
+            <!-- 굵은 기준선 -->
+            <div class="route-line"></div>
+
+            <!-- 지나온 역 -->
+            <div class="stn"><div class="stn-name">강남</div><div class="stn-dot"></div></div>
+            <div class="stn"><div class="stn-name">역삼</div><div class="stn-dot"></div></div>
+            <div class="stn"><div class="stn-name">선릉</div><div class="stn-dot"></div></div>
+            <div class="stn"><div class="stn-name">삼성</div><div class="stn-dot"></div></div>
+
+            <!-- 현재 역 -->
+            <div class="stn"><div class="stn-name current">종합운동장</div><div class="stn-dot current"></div></div>
+
+            <!-- 앞으로 -->
+            <div class="stn"><div class="stn-name">잠실새내</div><div class="stn-dot" style="background:#c8ccd4;border-color:#fff"></div></div>
+            <div class="stn"><div class="stn-name">잠실</div><div class="stn-dot" style="background:#c8ccd4;border-color:#fff"></div></div>
+
+            <!-- 하차 역 -->
+            <div class="stn"><div class="stn-name exit">건대입구</div><div class="stn-dot exit"></div></div>
+
+            <!-- 이후 (흐릿) -->
+            <div class="stn" style="opacity:.35"><div class="stn-name">구의</div><div class="stn-dot" style="background:#c8ccd4;border-color:#fff"></div></div>
+            <div class="stn" style="opacity:.18"><div class="stn-name">강변</div><div class="stn-dot" style="background:#c8ccd4;border-color:#fff"></div></div>
+
+          </div>
+        </div>
+
+      </div><!-- /sheet-scroll -->
+    </div><!-- /sheet -->
+
+    <!-- 긴급 카드 -->
+    <div class="emergency-area">
+      <div class="emergency-card">
+        <div class="em-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 3v6M9 13h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="em-body">
+          <div class="em-title">문제가 있나요?</div>
+          <div class="em-sub">지금 위치에서 목적지 다시 찾기</div>
+        </div>
+        <div class="em-btn">경로 재탐색</div>
+      </div>
+    </div>
+
+  </div><!-- /phone -->
+
+  <p class="note">
+    <b>지하철 버전</b> — 가로 노선도가 왼쪽으로 흘러가며 현재 역 표시.<br>
+    지나온 역 회색 · 현재역 초록 펄스 · 하차역 강조. 나머지 UI는 버스 ③과 동일.
+  </p>
+
+<script>
+// 지도 그리기
+(function(){
+  var cvs = document.getElementById('mapCanvas');
+  cvs.width = 366; cvs.height = 776;
+  var ctx = cvs.getContext('2d');
+  var W = cvs.width, H = cvs.height;
+  ctx.fillStyle = '#1e2d40'; ctx.fillRect(0,0,W,H);
+
+  var blocks = [
+    [20,60,80,30],[20,100,60,40],[20,150,90,25],[20,185,55,35],
+    [20,230,70,30],[20,270,50,40],[20,320,80,25],[20,355,65,35],
+    [20,400,75,30],[20,440,55,40],[20,490,80,30],
+    [120,60,55,35],[120,105,70,30],[120,145,50,40],[120,195,65,30],
+    [120,235,80,35],[120,280,55,30],[120,320,70,40],
+    [220,60,70,35],[220,105,50,40],[220,155,80,30],[220,195,55,35],
+    [220,240,65,30],[220,280,75,40],[220,330,55,35],
+    [300,60,55,35],[300,105,70,30],[300,145,50,40],[300,195,65,35],
+    [300,240,75,30],[300,280,55,40],
+  ];
+  blocks.forEach(function(r){
+    ctx.fillStyle='rgba(255,255,255,0.04)';
+    ctx.beginPath(); ctx.roundRect(r[0],r[1],r[2],r[3],3); ctx.fill();
+  });
+
+  ctx.strokeStyle='#2a3f58'; ctx.lineWidth=8;
+  [110,205,290].forEach(function(x){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); });
+  [95,190,285,380,475].forEach(function(y){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); });
+  ctx.strokeStyle='#2e4a66'; ctx.lineWidth=14;
+  ctx.beginPath(); ctx.moveTo(0,285); ctx.lineTo(W,285); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(205,0); ctx.lineTo(205,H); ctx.stroke();
+
+  // 지하철 2호선 경로 (초록, 가로로 길게)
+  ctx.save();
+  ctx.strokeStyle='rgba(0,152,68,0.15)'; ctx.lineWidth=10; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,285); ctx.lineTo(W,285); ctx.stroke();
+  ctx.strokeStyle='rgba(0,152,68,0.7)'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(0,285); ctx.lineTo(W,285); ctx.stroke();
+
+  // 지나온 구간 (회색)
+  ctx.strokeStyle='rgba(140,160,180,0.5)'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(0,285); ctx.lineTo(172,285); ctx.stroke();
+  // 앞으로 구간 (초록 강조)
+  ctx.strokeStyle='rgba(0,152,68,0.85)'; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.moveTo(172,285); ctx.lineTo(W,285); ctx.stroke();
+
+  // 역 점들
+  var stops2 = [
+    {x:40,y:285,p:true},{x:90,y:285,p:true},{x:130,y:285,p:true},{x:160,y:285,p:true},
+    {x:172,y:285,now:true},
+    {x:210,y:285},{x:250,y:285},{x:290,y:285,exit:true},
+    {x:330,y:285},
+  ];
+  stops2.forEach(function(s){
+    if(s.now){
+      ctx.beginPath(); ctx.arc(s.x,s.y,5,0,Math.PI*2);
+      ctx.fillStyle='#009844'; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x,s.y,9,0,Math.PI*2);
+      ctx.strokeStyle='rgba(0,152,68,0.4)'; ctx.lineWidth=2; ctx.stroke();
+    } else if(s.exit){
+      ctx.beginPath(); ctx.arc(s.x,s.y,5,0,Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x,s.y,5,0,Math.PI*2);
+      ctx.strokeStyle='#009844'; ctx.lineWidth=2; ctx.stroke();
+    } else if(s.p){
+      ctx.beginPath(); ctx.arc(s.x,s.y,4,0,Math.PI*2);
+      ctx.fillStyle='rgba(150,170,190,0.7)'; ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(s.x,s.y,4,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,152,68,0.6)'; ctx.fill();
+    }
+  });
+  ctx.restore();
+})();
+
+// 시트 드래그
+(function(){
+  var sheet=document.getElementById('sheet');
+  var handle=document.getElementById('handleWrap');
+  var EXPANDED=0, COLLAPSED=420, current=180;
+  var startY, startTY, dragging=false;
+  function setTY(ty){ sheet.style.transform='translateY('+ty+'px)'; }
+  function snap(ty){
+    current = ty < (EXPANDED+COLLAPSED)/2 ? EXPANDED : COLLAPSED;
+    sheet.style.transition='transform .32s cubic-bezier(.32,1,.36,1)';
+    setTY(current);
+    setTimeout(function(){sheet.style.transition='';},350);
+  }
+  handle.addEventListener('mousedown',function(e){dragging=true;startY=e.clientY;startTY=current;sheet.style.transition='none';});
+  document.addEventListener('mousemove',function(e){if(!dragging)return;var ty=Math.max(EXPANDED,Math.min(COLLAPSED,startTY+(e.clientY-startY)));setTY(ty);});
+  document.addEventListener('mouseup',function(){if(!dragging)return;dragging=false;snap(parseInt(sheet.style.transform.replace(/[^-\d]/g,''))||0);});
+  setTY(current);
+})();
+</script>
+</body>
+</html>

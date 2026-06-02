@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — 0단계 검색</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed; --chip:#eef0f3;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:50px 0 70px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:-.4px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px; letter-spacing:-.1px;}
+
+  .phone{
+    width:390px; height:800px; background:var(--bg); border-radius:54px;
+    position:relative; overflow:hidden; border:12px solid #0b0b0d;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);
+  }
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%);
+    width:110px; height:32px; background:#000; border-radius:18px; z-index:60;}
+  .status{position:absolute; top:0; left:0; right:0; height:56px; z-index:55;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 32px 0; color:var(--label);}
+  .status .time{font-size:16px; font-weight:600; letter-spacing:.2px; padding-left:8px;}
+  .status .ind{display:flex; align-items:center; gap:7px;}
+  .screen{position:absolute; inset:0; padding-top:56px; display:flex; flex-direction:column;}
+
+  /* ── 스크롤 영역 (검색 결과) ── */
+  .body{
+    flex:1; overflow-y:auto; padding:14px 0 8px;
+  }
+
+  /* 섹션 레이블 */
+  .sec-lbl{
+    font-size:12px; font-weight:600; color:var(--sec);
+    padding:0 20px; margin:16px 0 6px; letter-spacing:-.1px;
+  }
+
+  /* 검색 결과 / 최근 검색 행 — 카드 없이 전체 폭 */
+  .row{
+    display:flex; align-items:center; gap:14px;
+    padding:13px 20px; border-bottom:1px solid var(--line);
+    background:var(--card);
+  }
+  .row:first-child{ border-top:1px solid var(--line); }
+  .row-icon{
+    width:36px; height:36px; border-radius:10px; flex:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .ri-pin{background:rgba(10,132,255,.1);}
+  .ri-pin-top{background:rgba(10,132,255,.18);}
+  .ri-recent{background:#f0f0f5;}
+  .row-main{flex:1; min-width:0;}
+  .row-main .name{
+    font-size:15px; font-weight:600; color:var(--label);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .row-main .addr{font-size:12px; color:var(--sec); margin-top:2px;}
+  .row-time{font-size:12px; color:#c7c7cc; flex:none;}
+
+  /* 상단 첫 결과 강조 */
+  .row.top-pick{ background:#eef4ff; }
+
+  /* ── 하단 고정 컨트롤 바 ── */
+  .od-bar{
+    flex:none;
+    background:var(--card);
+    border-top:1px solid var(--line);
+    box-shadow:0 -2px 16px rgba(0,0,0,.07);
+    padding:10px 16px 0;
+  }
+
+  /* 출발 / 도착 두 행 */
+  .od-rows{
+    display:flex; flex-direction:column; gap:0;
+    background:#f4f5f7; border-radius:16px; overflow:hidden;
+    margin-bottom:10px;
+  }
+  .od-row{
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px;
+  }
+  .od-div{height:1px; background:var(--line); margin:0 14px 0 48px;}
+  .od-dot{width:9px; height:9px; border-radius:50%; flex:none;}
+  .od-lbl{font-size:11.5px; color:var(--sec); width:26px; flex:none; font-weight:500;}
+  .od-val{flex:1; font-size:15px; font-weight:600; color:var(--label); min-width:0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .od-val.placeholder{color:#c7c7cc; font-weight:400;}
+  .od-val.typing{color:var(--label);}
+  /* 커서 */
+  .cursor{
+    display:inline-block; width:2px; height:18px; background:var(--blue);
+    border-radius:1px; margin-left:1px; vertical-align:middle;
+    animation:blink 1s step-end infinite;
+  }
+  .od-swap{
+    width:32px; height:32px; border-radius:50%; background:#e7e8ec;
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+
+  /* 즐겨찾기 칩 (바 안에) */
+  .fav-row{
+    display:flex; gap:8px; padding-bottom:10px; overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .fav-row::-webkit-scrollbar{display:none;}
+  .fav-chip{
+    display:flex; align-items:center; gap:6px;
+    background:#f0f0f5; border-radius:20px; padding:6px 12px;
+    white-space:nowrap; flex:none;
+  }
+  .fav-chip .fc-icon{
+    width:20px; height:20px; border-radius:6px; flex:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fav-chip .fc-label{font-size:13px; font-weight:600; color:var(--label);}
+
+  /* 키보드 */
+  .kbd{
+    background:#d1d3d9; border-top:1px solid #b8bac0;
+    padding:8px 16px 22px;
+    display:grid; grid-template-columns:repeat(10,1fr); gap:5px 4px;
+  }
+  .kbd-key{
+    background:#fff; border-radius:7px; padding:10px 4px;
+    font-size:14px; font-weight:500; color:var(--label);
+    text-align:center; box-shadow:0 2px 0 #9a9aa2;
+  }
+  .kbd-key.wide{grid-column:span 2; font-size:12px; color:#444;}
+  .kbd-space{grid-column:span 5; font-size:13px; color:#8a8a8e;}
+  .kbd-done-key{
+    grid-column:span 2; background:var(--blue); border-radius:7px;
+    padding:10px 4px; font-size:12px; font-weight:700; color:#fff;
+    text-align:center; box-shadow:0 2px 0 #0060cc;
+  }
+
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+  .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
+    max-width:390px; text-align:center;}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>0단계 — 검색 화면</h1>
+  <p class="sub">출발/도착 바 하단 고정 · 키보드 밀어올림 · 즐겨찾기 칩 · 결과 풀스크린 스크롤</p>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span class="time">9:41</span>
+      <span class="ind">
+        <svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1c1c1e"/><rect x="5" y="5" width="3" height="6" rx="1" fill="#1c1c1e"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="#1c1c1e"/><rect x="15" y="0" width="3" height="11" rx="1" fill="#1c1c1e"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l7-7A9.8 9.8 0 008 1.5 9.8 9.8 0 001 4.5z" fill="none" stroke="#1c1c1e" stroke-width="1.4"/><circle cx="8" cy="9" r="1.4" fill="#1c1c1e"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x="1" y="1" width="20" height="10" rx="3" fill="none" stroke="#1c1c1e" stroke-opacity=".4"/><rect x="2.5" y="2.5" width="15" height="7" rx="1.5" fill="#1c1c1e"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="#1c1c1e" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <div class="screen">
+
+      <!-- ── 검색 결과 스크롤 영역 ── -->
+      <div class="body">
+
+        <!-- 자동완성 결과 (도착지 "올리브영" 입력 중) -->
+        <div class="row top-pick">
+          <div class="row-icon ri-pin-top">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#0a84ff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">올리브영 강남점</div>
+            <div class="addr">서울 강남구 강남대로 · 강남역 3번 출구</div>
+          </div>
+          <svg width="7" height="12" viewBox="0 0 7 12"><path d="M1 1l5 5-5 5" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="row">
+          <div class="row-icon ri-pin">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">올리브영 홍대점</div>
+            <div class="addr">서울 마포구 어울마당로</div>
+          </div>
+          <svg width="7" height="12" viewBox="0 0 7 12"><path d="M1 1l5 5-5 5" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="row">
+          <div class="row-icon ri-pin">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">올리브영 이대점</div>
+            <div class="addr">서울 서대문구 이화여대길</div>
+          </div>
+          <svg width="7" height="12" viewBox="0 0 7 12"><path d="M1 1l5 5-5 5" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="row">
+          <div class="row-icon ri-pin">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">올리브영 신촌점</div>
+            <div class="addr">서울 서대문구 신촌로</div>
+          </div>
+          <svg width="7" height="12" viewBox="0 0 7 12"><path d="M1 1l5 5-5 5" fill="none" stroke="#c7c7cc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <!-- 최근 검색 -->
+        <div class="sec-lbl">최근 검색</div>
+        <div class="row">
+          <div class="row-icon ri-recent">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M13 3a9 9 0 11-8.94 10H2a11 11 0 1011-11v3l-4-4 4-4v3z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">강남역</div>
+            <div class="addr">서울 강남구</div>
+          </div>
+          <div class="row-time">어제</div>
+        </div>
+        <div class="row">
+          <div class="row-icon ri-recent">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M13 3a9 9 0 11-8.94 10H2a11 11 0 1011-11v3l-4-4 4-4v3z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">홍대입구역 1번 출구</div>
+            <div class="addr">서울 마포구 양화로</div>
+          </div>
+          <div class="row-time">3일 전</div>
+        </div>
+        <div class="row">
+          <div class="row-icon ri-recent">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M13 3a9 9 0 11-8.94 10H2a11 11 0 1011-11v3l-4-4 4-4v3z"/></svg>
+          </div>
+          <div class="row-main">
+            <div class="name">합정역 6번 출구</div>
+            <div class="addr">서울 마포구 합정동</div>
+          </div>
+          <div class="row-time">5일 전</div>
+        </div>
+
+      </div>
+
+      <!-- ── 하단 고정: 출발/도착 바 + 즐겨찾기 + 키보드 ── -->
+      <div class="od-bar">
+
+        <!-- 출발/도착 두 줄 -->
+        <div class="od-rows">
+          <!-- 출발 -->
+          <div class="od-row">
+            <div class="od-dot" style="background:var(--blue)"></div>
+            <span class="od-lbl">출발</span>
+            <span class="od-val">현재 위치</span>
+          </div>
+          <div class="od-div"></div>
+          <!-- 도착 — 입력 중 -->
+          <div class="od-row">
+            <div class="od-dot" style="background:var(--purple)"></div>
+            <span class="od-lbl">도착</span>
+            <span class="od-val typing">올리브영<span class="cursor"></span></span>
+            <!-- 맞바꾸기 -->
+            <div class="od-swap">
+              <svg width="13" height="13" viewBox="0 0 14 14"><path d="M4 2v8M4 10L1.5 7.5M4 10l2.5-2.5M10 12V4M10 4l2.5 2.5M10 4L7.5 6.5" stroke="#1c1c1e" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 즐겨찾기 칩 -->
+        <div class="fav-row">
+          <div class="fav-chip">
+            <div class="fc-icon" style="background:rgba(52,199,89,.15)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#34c759"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </div>
+            <span class="fc-label">집</span>
+          </div>
+          <div class="fav-chip">
+            <div class="fc-icon" style="background:rgba(10,132,255,.12)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#0a84ff"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>
+            </div>
+            <span class="fc-label">회사</span>
+          </div>
+          <div class="fav-chip">
+            <div class="fc-icon" style="background:rgba(255,159,10,.12)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#ff9f0a"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            </div>
+            <span class="fc-label">카페</span>
+          </div>
+          <div class="fav-chip">
+            <div class="fc-icon" style="background:#f0f0f5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#8a8a8e"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            </div>
+            <span class="fc-label">병원</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 키보드 -->
+      <div class="kbd">
+        <div class="kbd-key">ㅂ</div><div class="kbd-key">ㅈ</div><div class="kbd-key">ㄷ</div><div class="kbd-key">ㄱ</div><div class="kbd-key">ㅅ</div><div class="kbd-key">ㅛ</div><div class="kbd-key">ㅕ</div><div class="kbd-key">ㅑ</div><div class="kbd-key">ㅐ</div><div class="kbd-key">ㅔ</div>
+        <div class="kbd-key">ㅁ</div><div class="kbd-key">ㄴ</div><div class="kbd-key">ㅇ</div><div class="kbd-key">ㄹ</div><div class="kbd-key">ㅎ</div><div class="kbd-key">ㅗ</div><div class="kbd-key">ㅓ</div><div class="kbd-key">ㅏ</div><div class="kbd-key">ㅣ</div><div style="grid-column:span 1"></div>
+        <div class="kbd-key wide">⇧</div><div class="kbd-key">ㅋ</div><div class="kbd-key">ㅌ</div><div class="kbd-key">ㅊ</div><div class="kbd-key">ㅍ</div><div class="kbd-key">ㅠ</div><div class="kbd-key">ㅜ</div><div class="kbd-key">ㅡ</div><div class="kbd-key wide">⌫</div>
+        <div class="kbd-key wide">123</div><div class="kbd-space">스페이스</div><div class="kbd-done-key">완료</div>
+      </div>
+
+    </div><!-- /screen -->
+  </div><!-- /phone -->
+
+  <p class="note">
+    <b>0단계 — 검색</b> — 출발/도착 바가 하단 고정, 키보드가 밀어올리는 구조.<br>
+    즐겨찾기는 바 안의 작은 칩으로만. 검색 결과·최근 검색은 풀스크린 스크롤.<br>
+    결과 행 탭 → 도착지 확정 → <b>① 경로 목록</b>으로 이동.
+  </p>
+</body>
+</html>

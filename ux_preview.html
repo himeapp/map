@@ -6,63 +6,188 @@
 <title>himemap — UX 목업 인덱스</title>
 <style>
   *{box-sizing:border-box;}
-  body{margin:0; min-height:100vh; padding:60px 24px;
+  body{margin:0; min-height:100vh; padding:60px 24px 80px;
     font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
     background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff;
     display:flex; flex-direction:column; align-items:center;}
   h1{font-size:26px; font-weight:800; margin:0 0 6px; letter-spacing:-.5px;}
   .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px;}
-  .grid{display:flex; flex-direction:column; gap:14px; width:100%; max-width:460px;}
+  .grid{display:flex; flex-direction:column; gap:8px; width:100%; max-width:460px;}
+
+  /* 섹션 구분 */
+  .sec-head{
+    display:flex; align-items:center; gap:10px;
+    font-size:11px; font-weight:700; color:#555; letter-spacing:.6px; text-transform:uppercase;
+    margin:20px 2px 8px;
+  }
+  .sec-head::after{content:''; flex:1; height:1px; background:#222;}
+
+  /* 카드 */
   a.card{display:flex; align-items:center; gap:16px; text-decoration:none;
-    background:#1e1e22; border:1px solid #303036; border-radius:18px; padding:20px 22px;
-    color:#fff; transition:background .15s;}
+    background:#1e1e22; border:1px solid #303036; border-radius:18px; padding:18px 20px;
+    color:#fff; transition:background .15s; position:relative;}
   a.card:hover{background:#26262c;}
-  .n{font-size:30px; font-weight:800; color:#0a84ff; flex:none; width:44px; letter-spacing:-1px;}
-  .tt{font-size:18px; font-weight:700; letter-spacing:-.3px;}
-  .dd{font-size:13px; color:#9a9aa2; margin-top:3px; line-height:1.45;}
-  .arr{margin-left:auto; color:#5a5a62; font-size:22px;}
-  .todo{opacity:.5;}
-  .todo .n{color:#5a5a62;}
+  a.card.done{border-color:#1a3a5a;}
+  a.card.todo{opacity:.55;}
+
+  .n{font-size:26px; font-weight:800; flex:none; width:40px; letter-spacing:-1px; line-height:1;}
+  .n.blue{color:#0a84ff;}
+  .n.green{color:#34c759;}
+  .n.orange{color:#ff9f0a;}
+  .n.gray{color:#5a5a62;}
+
+  .tt{font-size:16px; font-weight:700; letter-spacing:-.3px;}
+  .dd{font-size:12.5px; color:#9a9aa2; margin-top:3px; line-height:1.45;}
+  .arr{margin-left:auto; color:#5a5a62; font-size:20px; flex:none;}
+
+  /* 뱃지 */
+  .badge{
+    font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px;
+    position:absolute; top:14px; right:48px; letter-spacing:.2px;
+  }
+  .badge.done{background:rgba(52,199,89,.15); color:#34c759; border:1px solid rgba(52,199,89,.3);}
+  .badge.new{background:rgba(10,132,255,.15); color:#60a5fa; border:1px solid rgba(10,132,255,.3);}
+  .badge.todo{background:rgba(255,255,255,.06); color:#666; border:1px solid rgba(255,255,255,.1);}
+
+  /* 화살표 연결선 */
+  .connector{
+    display:flex; align-items:center; justify-content:center;
+    gap:6px; padding:2px 0;
+  }
+  .conn-line{width:1.5px; height:20px; background:#2a2a2e;}
+  .conn-label{font-size:11px; color:#444; background:#1a1a1e; border:1px solid #2a2a2e;
+    border-radius:20px; padding:2px 10px; white-space:nowrap;}
+
   .note{margin-top:36px; font-size:12.5px; color:#76767e; max-width:460px; line-height:1.6; text-align:center;}
 </style>
 </head>
 <body>
   <h1>himemap UX 목업</h1>
-  <p class="sub">검색 → 경로 추리기 → 출발 지점 → 탑승 → 다음 경로 · 단계별 화면</p>
+  <p class="sub">전체 플로우 · 정상 경로 · 환승 포함 · 단계별 화면</p>
 
   <div class="grid">
-    <a class="card" href="/ux_stage1.html">
-      <span class="n">①</span>
+
+    <!-- ── 정상 플로우 ── -->
+    <div class="sec-head">정상 플로우</div>
+
+    <a class="card new" href="/ux_stage0.html">
+      <span class="n gray">0</span>
+      <span>
+        <div class="tt">검색</div>
+        <div class="dd">출발지·도착지 입력 · 현재 위치 자동 채우기 · 즐겨찾기·최근 검색</div>
+      </span>
+      <span class="badge new">신규</span>
+      <span class="arr">›</span>
+    </a>
+
+    <div class="connector">
+      <div class="conn-line"></div>
+      <div class="conn-label">검색 실행</div>
+      <div class="conn-line"></div>
+    </div>
+
+    <a class="card done" href="/ux_stage1.html">
+      <span class="n blue">①</span>
       <span>
         <div class="tt">전체 경로</div>
-        <div class="dd">완성 경로 다 보여주고 어느 길로 갈지 고름 · 빠른 순 · 비례 막대 · 실시간 없음(계획)</div>
+        <div class="dd">5개 경로 비교 · 추천 강조 · 비례 막대 · 실시간 없음(계획 단계)</div>
       </span>
+      <span class="badge done">완료</span>
       <span class="arr">›</span>
     </a>
 
-    <a class="card" href="/ux_stage2.html">
-      <span class="n">②</span>
+    <div class="connector">
+      <div class="conn-line"></div>
+      <div class="conn-label">경로 선택 탭</div>
+      <div class="conn-line"></div>
+    </div>
+
+    <a class="card new" href="/ux_stage_walk.html">
+      <span class="n gray">↓</span>
       <span>
-        <div class="tt">그 정류장 집중</div>
-        <div class="dd">고른 출발 지점에서 강남역 가는 버스만 · 곧 오는 순 단순 리스트 · 실시간 "몇 분 후"</div>
+        <div class="tt">정류소까지 도보</div>
+        <div class="dd">출발 정류소까지 거리·방향 안내 · 도착할 버스 예고</div>
       </span>
+      <span class="badge new">신규</span>
       <span class="arr">›</span>
     </a>
 
-    <a class="card" href="/ux_stage3.html">
-      <span class="n">③</span>
+    <div class="connector">
+      <div class="conn-line"></div>
+      <div class="conn-label">정류소 도착</div>
+      <div class="conn-line"></div>
+    </div>
+
+    <a class="card done" href="/ux_stage2.html">
+      <span class="n green">②</span>
       <span>
-        <div class="tt">탑승 후</div>
-        <div class="dd">어디서 내릴지 세로 타임라인 · 선이 차오르며 현재 위치 표시 · 지나는 정류장 펼치기 · 변동 시 그 지점 기준 재검색(도착지 불변)</div>
+        <div class="tt">정류소 실시간</div>
+        <div class="dd">탑승 대기 · 고른 버스 강조 · 실시간 N분 후 · "탔어요" 확인</div>
       </span>
+      <span class="badge done">완료</span>
       <span class="arr">›</span>
     </a>
+
+    <div class="connector">
+      <div class="conn-line"></div>
+      <div class="conn-label">"탔어요" 탭</div>
+      <div class="conn-line"></div>
+    </div>
+
+    <a class="card done" href="/ux_stage3.html">
+      <span class="n orange">③</span>
+      <span>
+        <div class="tt">탑승 후 이동 추적</div>
+        <div class="dd">세로 타임라인 · 남은 정거장 · 선 차오르며 진행 · 하차 알림</div>
+      </span>
+      <span class="badge done">완료</span>
+      <span class="arr">›</span>
+    </a>
+
+    <!-- ── 환승 분기 ── -->
+    <div class="sec-head" style="margin-top:28px">환승 분기</div>
+
+    <a class="card new" href="/ux_transfer.html">
+      <span class="n orange">↻</span>
+      <span>
+        <div class="tt">환승</div>
+        <div class="dd">하차 후 다음 탑승 정류소 이동 · 완료 구간 확인 · ② 화면으로 재진입</div>
+      </span>
+      <span class="badge new">신규</span>
+      <span class="arr">›</span>
+    </a>
+
+    <!-- ── 종착 ── -->
+    <div class="sec-head" style="margin-top:28px">종착</div>
+
+    <a class="card new" href="/ux_arrive.html">
+      <span class="n green">✓</span>
+      <span>
+        <div class="tt">도착 완료</div>
+        <div class="dd">도착 축하 · 총 소요 시간 요약 · 새 목적지 검색으로 연결</div>
+      </span>
+      <span class="badge new">신규</span>
+      <span class="arr">›</span>
+    </a>
+
+    <!-- ── 플로우 다이어그램 ── -->
+    <div class="sec-head" style="margin-top:28px">참고</div>
+
+    <a class="card todo" href="/ux_flow.html">
+      <span class="n gray">↗</span>
+      <span>
+        <div class="tt">전체 플로우 다이어그램</div>
+        <div class="dd">모든 단계·전환·예외 케이스 한눈에 보기</div>
+      </span>
+      <span class="badge todo">참고용</span>
+      <span class="arr">›</span>
+    </a>
+
   </div>
 
-  <p class="note">각 화면은 독립 HTML로 보존됩니다 (ux_stage1.html, ux_stage2.html …). 덮어쓰기로 사라지지 않음.<br>확정된 결정/원칙은 메모리(project_core_ux.md)에 텍스트로 누적. SwiftUI 코드 반영은 별도 단계.</p>
+  <p class="note">각 화면은 독립 HTML로 보존됩니다. 덮어쓰기로 사라지지 않음.<br>확정된 결정·원칙은 메모리에 텍스트로 누적. SwiftUI 코드 반영은 별도 단계.</p>
 
   <script>
-    // Preview 샌드박스 iframe은 <a href> 네비게이션을 막아서, JS로 직접 이동시킴
     document.querySelectorAll('a.card[href]').forEach(function(a){
       a.addEventListener('click', function(e){
         e.preventDefault();

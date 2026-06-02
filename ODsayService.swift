@@ -85,7 +85,9 @@ final class ODsayService {
                 type: vehicleType,
                 number: number,
                 headsign: headsign,
-                via: firstTransit.endName ?? ""
+                via: firstTransit.endName ?? "",
+                busType: vehicleType == .bus ? lane.type : nil,
+                subwayLineCode: vehicleType == .subway ? lane.subwayCode : nil
             )
 
             let originStop = TransitStop(
@@ -161,7 +163,9 @@ final class ODsayService {
                     type: vt,
                     number: num,
                     headsign: sp.way ?? "",
-                    via: sp.endName ?? ""
+                    via: sp.endName ?? "",
+                    busType: vt == .bus ? lane.type : nil,
+                    subwayLineCode: vt == .subway ? lane.subwayCode : nil
                 )
                 steps.append(RouteStep(
                     type: .transfer,

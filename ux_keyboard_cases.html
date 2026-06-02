@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키보드 시나리오 비교</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:50px 0 80px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff;
+    display:flex; flex-direction:column; align-items:center; gap:80px;
+  }
+  h1{font-size:26px; font-weight:700; margin:0 0 4px; letter-spacing:-.4px; text-align:center;}
+  .page-sub{color:#9a9aa2; font-size:14px; margin:0; text-align:center;}
+
+  /* ── 섹션 ── */
+  .section{display:flex; flex-direction:column; align-items:center; gap:0;}
+  .sec-title{font-size:18px; font-weight:700; margin:0 0 4px; letter-spacing:-.3px;}
+  .sec-desc{color:#9a9aa2; font-size:13px; margin:0 0 28px; text-align:center; max-width:720px; line-height:1.6;}
+
+  .phones{display:flex; gap:40px; align-items:flex-start;}
+
+  .phone-wrap{display:flex; flex-direction:column; align-items:center; gap:12px;}
+  .phone-label{font-size:13px; font-weight:600; color:#9a9aa2; letter-spacing:-.1px;}
+  .phone-note{font-size:12px; color:#636366; max-width:170px; text-align:center; line-height:1.5;}
+  .good .phone-label{color:#34c759;}
+  .bad .phone-label{color:#ff453a;}
+
+  /* 폰 프레임 */
+  .phone{
+    width:180px; height:370px; background:var(--bg); border-radius:36px;
+    position:relative; overflow:hidden; border:8px solid #0b0b0d;
+    box-shadow:0 20px 50px rgba(0,0,0,.55); flex:none;
+  }
+  .island{position:absolute; top:7px; left:50%; transform:translateX(-50%);
+    width:52px; height:16px; background:#000; border-radius:10px; z-index:60;}
+  .sb{position:absolute; top:0; left:0; right:0; height:28px; z-index:55;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    padding:0 14px 4px; color:var(--label); font-size:8px; font-weight:600;}
+
+  /* ─────────────── CASE A: 현재 구조 (flex column) ─────────────── */
+  .screen-a{
+    position:absolute; inset:0; padding-top:28px;
+    display:flex; flex-direction:column;
+  }
+  .body-a{
+    flex:1; overflow:hidden;
+    background:#fff;
+  }
+  .result-row{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-bottom:1px solid var(--line);
+    font-size:9px; color:var(--label);
+  }
+  .result-row .dot{width:6px;height:6px;border-radius:50%;background:#0a84ff;flex:none;}
+  .result-row .rname{font-weight:600;}
+  .result-row .rsub{color:var(--sec); font-size:8px;}
+  .od-bar-a{
+    flex:none; background:#fff; border-top:1px solid var(--line);
+    padding:6px 8px 4px;
+  }
+  .od-rows-a{
+    background:#f4f5f7; border-radius:10px; overflow:hidden; margin-bottom:4px;
+  }
+  .od-row-a{
+    display:flex; align-items:center; gap:6px; padding:6px 8px;
+    font-size:9px; color:var(--label);
+  }
+  .od-div-a{height:1px; background:var(--line); margin:0 8px 0 22px;}
+  .od-dot-a{width:6px;height:6px;border-radius:50%;flex:none;}
+  .od-lbl-a{font-size:8px;color:var(--sec);width:16px;flex:none;}
+  .od-val-a{flex:1;font-size:9px;font-weight:600;}
+  .od-val-a.typing{color:var(--label);}
+  .cursor-a{display:inline-block;width:1.5px;height:10px;background:var(--blue);
+    border-radius:1px;margin-left:1px;vertical-align:middle;
+    animation:blink 1s step-end infinite;}
+  .kbd-a{
+    background:#d1d3d9; border-top:1px solid #b8bac0;
+    padding:4px 6px 10px;
+    display:grid; grid-template-columns:repeat(10,1fr); gap:3px 2px;
+  }
+  .k{
+    background:#fff; border-radius:4px; padding:5px 2px;
+    font-size:7px; color:var(--label); text-align:center;
+    box-shadow:0 1px 0 #9a9aa2;
+  }
+  .k.w2{grid-column:span 2; font-size:6.5px; color:#444;}
+  .k.w5{grid-column:span 5; font-size:6.5px; color:#8a8a8e;}
+  .k.done{grid-column:span 2; background:var(--blue); color:#fff; font-weight:700;}
+
+  /* ─────────────── CASE B: 지도 위 floating 인풋 (문제) ─────────────── */
+  .screen-b{position:absolute; inset:0; padding-top:28px;}
+  .map-bg{
+    position:absolute; inset:28px 0 0 0;
+    background:linear-gradient(160deg,#e8f0e0 0%,#d4e8c8 40%,#c8ddb8 100%);
+  }
+  /* 지도 격자 */
+  .map-bg::before{
+    content:'';position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(0,0,0,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,0,0,.06) 1px,transparent 1px);
+    background-size:20px 20px;
+  }
+  .map-road-h{position:absolute;left:0;right:0;height:3px;background:rgba(255,255,255,.7);}
+  .map-road-v{position:absolute;top:28px;bottom:0;width:3px;background:rgba(255,255,255,.7);}
+  /* floating 인풋 (지도 위에 absolute) */
+  .float-input{
+    position:absolute; left:8px; right:8px; bottom:8px;
+    background:#fff; border-radius:10px; padding:6px 8px;
+    box-shadow:0 4px 16px rgba(0,0,0,.18);
+    display:flex; flex-direction:column; gap:0; z-index:10;
+  }
+  .fi-row{display:flex;align-items:center;gap:6px;padding:5px 0;}
+  .fi-div{height:1px;background:var(--line);margin:0 0 0 16px;}
+  .fi-dot{width:6px;height:6px;border-radius:50%;flex:none;}
+  .fi-lbl{font-size:8px;color:var(--sec);width:16px;flex:none;}
+  .fi-val{flex:1;font-size:9px;font-weight:600;color:var(--label);}
+  /* 키보드가 인풋 위로 덮음 — 문제 상황 */
+  .kbd-b-overlay{
+    position:absolute; left:0; right:0; bottom:0;
+    background:#d1d3d9; border-top:1px solid #b8bac0;
+    padding:4px 6px 10px; z-index:20;
+    display:grid; grid-template-columns:repeat(10,1fr); gap:3px 2px;
+  }
+  /* 빨간 경고 표시 */
+  .overlap-warning{
+    position:absolute; left:8px; right:8px; bottom:100px;
+    background:rgba(255,69,58,.9); border-radius:8px;
+    padding:5px 8px; z-index:30;
+    font-size:8px; color:#fff; font-weight:600; text-align:center;
+  }
+
+  /* ─────────────── CASE C: 지도 화면 → 검색 전환 (해결책) ─────────────── */
+  /* 지도 화면 */
+  .screen-c1{position:absolute; inset:0; padding-top:28px;}
+  .map-bg-c{
+    position:absolute; inset:28px 0 0 0;
+    background:linear-gradient(160deg,#e8f0e0 0%,#d4e8c8 40%,#c8ddb8 100%);
+  }
+  .map-bg-c::before{
+    content:'';position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(0,0,0,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,0,0,.06) 1px,transparent 1px);
+    background-size:20px 20px;
+  }
+  /* 지도 화면의 검색바 (탭 전) */
+  .search-bar-top{
+    position:absolute; top:34px; left:8px; right:8px;
+    background:#fff; border-radius:12px; padding:7px 10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.15); z-index:10;
+    display:flex; align-items:center; gap:6px;
+  }
+  .sb-icon{width:12px;height:12px;flex:none;}
+  .sb-text{font-size:9px;color:#c7c7cc;}
+  /* 탭 화살표 */
+  .tap-arrow{
+    position:absolute; top:52px; left:50%; transform:translateX(-50%);
+    font-size:18px; animation:bounce .8s ease-in-out infinite;
+  }
+
+  /* 검색 화면 (전환 후) — flex column */
+  .screen-c2{
+    position:absolute; inset:0; padding-top:28px;
+    display:flex; flex-direction:column;
+    background:var(--bg);
+  }
+  .search-header{
+    background:#fff; padding:6px 8px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:6px; flex:none;
+  }
+  .back-btn{font-size:9px;color:var(--blue);font-weight:600;flex:none;}
+  .search-input-box{
+    flex:1; background:#f4f5f7; border-radius:8px;
+    padding:5px 8px; font-size:9px; color:var(--label); font-weight:600;
+    display:flex; align-items:center;
+  }
+  .body-c2{flex:1;overflow:hidden;background:#fff;}
+  .od-bar-c2{
+    flex:none; background:#fff; border-top:1px solid var(--line);
+    padding:6px 8px 4px;
+  }
+
+  /* ─────────────── CASE D: 토스트 + 인풋 ─────────────── */
+  .screen-d{
+    position:absolute; inset:0; padding-top:28px;
+    display:flex; flex-direction:column;
+  }
+  .body-d{flex:1;background:#fff;overflow:hidden;position:relative;}
+  /* 토스트 */
+  .toast{
+    position:absolute; left:8px; right:8px; top:8px;
+    background:#1c1c1e; color:#fff; border-radius:10px;
+    padding:7px 10px; font-size:9px; font-weight:600;
+    display:flex; align-items:center; gap:6px; z-index:20;
+    box-shadow:0 4px 16px rgba(0,0,0,.3);
+  }
+  .toast-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);flex:none;}
+  .od-bar-d{
+    flex:none; background:#fff; border-top:1px solid var(--line);
+    padding:6px 8px 4px;
+  }
+
+  /* 토스트 사라진 버전 */
+  .toast-gone{
+    position:absolute; left:8px; right:8px; top:8px;
+    height:28px; border-radius:10px;
+    border:1.5px dashed #444; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .toast-gone-lbl{font-size:7.5px;color:#636366;}
+
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  @keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(4px)}}
+
+  /* ─────────────── 구분선 ─────────────── */
+  .divider{width:600px;height:1px;background:#2a2a2f;}
+</style>
+</head>
+<body>
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+    <h1>키보드 올라올 때 — 시나리오 비교</h1>
+    <p class="page-sub">출발/도착 인풋 하단 고정 · 키보드 등장 시 각 케이스별 처리</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CASE A: 현재 구조 -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="sec-title">케이스 A — 현재 구조 (flex column)</div>
+    <div class="sec-desc">검색 결과 목록이 flex:1이라 키보드 뜨면 자연스럽게 줄어듦. 아무 문제 없음. <br>인풋 위는 스크롤 가능한 리스트라 겹칠 게 없음.</div>
+    <div class="phones">
+
+      <!-- 키보드 없을 때 -->
+      <div class="phone-wrap">
+        <div class="phone-label">키보드 전</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-a">
+            <div class="body-a">
+              <div class="result-row"><div class="dot"></div><div><div class="rname">올리브영 강남점</div><div class="rsub">강남구 강남대로</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 홍대점</div><div class="rsub">마포구 어울마당로</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 이대점</div><div class="rsub">서대문구 이화여대길</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 신촌점</div><div class="rsub">서대문구 신촌로</div></div></div>
+              <div style="padding:6px 10px;font-size:8px;font-weight:600;color:var(--sec);">최근 검색</div>
+              <div class="result-row"><div class="dot" style="background:#f0f0f5;border:1px solid #ddd"></div><div><div class="rname">강남역</div><div class="rsub">서울 강남구</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#f0f0f5;border:1px solid #ddd"></div><div><div class="rname">홍대입구역 1번 출구</div><div class="rsub">마포구 양화로</div></div></div>
+            </div>
+            <div class="od-bar-a">
+              <div class="od-rows-a">
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--blue)"></div><span class="od-lbl-a">출발</span><span class="od-val-a">현재 위치</span></div>
+                <div class="od-div-a"></div>
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--purple)"></div><span class="od-lbl-a">도착</span><span class="od-val-a placeholder" style="color:#c7c7cc;font-weight:400;">어디로 가세요?</span></div>
+              </div>
+            </div>
+            <!-- 키보드 없음 -->
+          </div>
+        </div>
+        <div class="phone-note" style="color:#636366;">결과 목록이 꽉 차있음</div>
+      </div>
+
+      <!-- 키보드 있을 때 -->
+      <div class="phone-wrap good">
+        <div class="phone-label">✓ 키보드 후 — 자연스럽게 줄어듦</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-a">
+            <div class="body-a">
+              <div class="result-row" style="background:#eef4ff;"><div class="dot"></div><div><div class="rname">올리브영 강남점</div><div class="rsub">강남구 강남대로</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 홍대점</div><div class="rsub">마포구 어울마당로</div></div></div>
+              <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 이대점</div></div></div>
+            </div>
+            <div class="od-bar-a">
+              <div class="od-rows-a">
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--blue)"></div><span class="od-lbl-a">출발</span><span class="od-val-a">현재 위치</span></div>
+                <div class="od-div-a"></div>
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--purple)"></div><span class="od-lbl-a">도착</span><span class="od-val-a typing">올리브영<span class="cursor-a"></span></span></div>
+              </div>
+            </div>
+            <div class="kbd-a">
+              <div class="k">ㅂ</div><div class="k">ㅈ</div><div class="k">ㄷ</div><div class="k">ㄱ</div><div class="k">ㅅ</div><div class="k">ㅛ</div><div class="k">ㅕ</div><div class="k">ㅑ</div><div class="k">ㅐ</div><div class="k">ㅔ</div>
+              <div class="k">ㅁ</div><div class="k">ㄴ</div><div class="k">ㅇ</div><div class="k">ㄹ</div><div class="k">ㅎ</div><div class="k">ㅗ</div><div class="k">ㅓ</div><div class="k">ㅏ</div><div class="k">ㅣ</div><div style="grid-column:span 1"></div>
+              <div class="k w2">⇧</div><div class="k">ㅋ</div><div class="k">ㅌ</div><div class="k">ㅊ</div><div class="k">ㅍ</div><div class="k">ㅠ</div><div class="k">ㅜ</div><div class="k">ㅡ</div><div class="k w2">⌫</div>
+              <div class="k w2">123</div><div class="k w5">스페이스</div><div class="k done">완료</div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-note" style="color:#34c759;">결과 3개만 보이고 스크롤 가능. 인풋은 키보드 바로 위에 딱 붙음. 완벽.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CASE B: 지도 위 floating 인풋 (문제) -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="sec-title">케이스 B — 지도 위에 인풋 floating (문제 상황)</div>
+    <div class="sec-desc">인풋을 지도 위에 absolute로 띄운 구조. 키보드가 올라오면 인풋을 덮어버림.</div>
+    <div class="phones">
+
+      <!-- 키보드 전 -->
+      <div class="phone-wrap">
+        <div class="phone-label">키보드 전</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-b">
+            <div class="map-bg">
+              <div class="map-road-h" style="top:40px;"></div>
+              <div class="map-road-h" style="top:90px;"></div>
+              <div class="map-road-h" style="top:150px;"></div>
+              <div class="map-road-v" style="left:50px;"></div>
+              <div class="map-road-v" style="left:110px;"></div>
+              <!-- 핀 -->
+              <div style="position:absolute;top:70px;left:90px;font-size:14px;">📍</div>
+              <!-- 경로 카드 같은 floating 요소 -->
+              <div style="position:absolute;top:8px;left:8px;right:8px;background:#fff;border-radius:10px;padding:7px 10px;box-shadow:0 2px 10px rgba(0,0,0,.15);z-index:5;">
+                <div style="font-size:8px;font-weight:700;color:var(--label);margin-bottom:3px;">강남역 → 홍대입구역</div>
+                <div style="font-size:7.5px;color:var(--sec);">지하철 2호선 · 약 25분</div>
+              </div>
+            </div>
+            <div class="float-input">
+              <div class="fi-row"><div class="fi-dot" style="background:var(--blue)"></div><span class="fi-lbl">출발</span><span class="fi-val">현재 위치</span></div>
+              <div class="fi-div"></div>
+              <div class="fi-row"><div class="fi-dot" style="background:var(--purple)"></div><span class="fi-lbl">도착</span><span class="fi-val" style="color:#c7c7cc;font-weight:400;">어디로 가세요?</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-note" style="color:#636366;">지도 + 경로 카드 + 하단 인풋</div>
+      </div>
+
+      <!-- 키보드 후 (문제) -->
+      <div class="phone-wrap bad">
+        <div class="phone-label">✗ 키보드 후 — 인풋이 묻힘</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-b">
+            <div class="map-bg">
+              <div class="map-road-h" style="top:40px;"></div>
+              <div class="map-road-h" style="top:90px;"></div>
+              <div class="map-road-v" style="left:50px;"></div>
+              <div class="map-road-v" style="left:110px;"></div>
+              <div style="position:absolute;top:8px;left:8px;right:8px;background:#fff;border-radius:10px;padding:7px 10px;box-shadow:0 2px 10px rgba(0,0,0,.15);z-index:5;">
+                <div style="font-size:8px;font-weight:700;color:var(--label);margin-bottom:3px;">강남역 → 홍대입구역</div>
+                <div style="font-size:7.5px;color:var(--sec);">지하철 2호선 · 약 25분</div>
+              </div>
+            </div>
+            <!-- 인풋이 키보드 뒤에 숨어버림 (희미하게 표시) -->
+            <div class="float-input" style="opacity:.25;z-index:5;">
+              <div class="fi-row"><div class="fi-dot" style="background:var(--blue)"></div><span class="fi-lbl">출발</span><span class="fi-val">현재 위치</span></div>
+              <div class="fi-div"></div>
+              <div class="fi-row"><div class="fi-dot" style="background:var(--purple)"></div><span class="fi-lbl">도착</span><span class="fi-val typing">올리브영<span class="cursor-a"></span></span></div>
+            </div>
+            <!-- 키보드가 인풋을 덮음 -->
+            <div class="kbd-b-overlay">
+              <div class="k">ㅂ</div><div class="k">ㅈ</div><div class="k">ㄷ</div><div class="k">ㄱ</div><div class="k">ㅅ</div><div class="k">ㅛ</div><div class="k">ㅕ</div><div class="k">ㅑ</div><div class="k">ㅐ</div><div class="k">ㅔ</div>
+              <div class="k">ㅁ</div><div class="k">ㄴ</div><div class="k">ㅇ</div><div class="k">ㄹ</div><div class="k">ㅎ</div><div class="k">ㅗ</div><div class="k">ㅓ</div><div class="k">ㅏ</div><div class="k">ㅣ</div><div></div>
+              <div class="k w2">⇧</div><div class="k">ㅋ</div><div class="k">ㅌ</div><div class="k">ㅊ</div><div class="k">ㅍ</div><div class="k">ㅠ</div><div class="k">ㅜ</div><div class="k">ㅡ</div><div class="k w2">⌫</div>
+              <div class="k w2">123</div><div class="k w5">스페이스</div><div class="k done">완료</div>
+            </div>
+            <!-- 경고 표시 -->
+            <div style="position:absolute;top:105px;left:8px;right:8px;background:rgba(255,69,58,.85);border-radius:6px;padding:4px 7px;z-index:50;font-size:7.5px;color:#fff;font-weight:600;text-align:center;">
+              ⚠️ 인풋이 키보드에 완전히 묻힘<br>타이핑하고 있는데 뭘 치는지 안 보임
+            </div>
+          </div>
+        </div>
+        <div class="phone-note" style="color:#ff453a;">키보드가 인풋 위를 그냥 덮어버림. 사용자는 뭘 치는지 못 봄.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CASE C: 토스트 + 인풋 -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="sec-title">케이스 C — 토스트/알림 + 인풋 동시에</div>
+    <div class="sec-desc">결과 목록 위에 토스트가 떠있을 때 인풋 탭 → 인풋 포커스 시 토스트 즉시 dismiss.</div>
+    <div class="phones">
+
+      <!-- 토스트 있을 때 -->
+      <div class="phone-wrap">
+        <div class="phone-label">인풋 탭 전</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-d">
+            <div class="body-d">
+              <div class="toast">
+                <div class="toast-dot"></div>
+                <span>GPS 신호가 약합니다</span>
+              </div>
+              <div style="padding-top:44px;">
+                <div class="result-row"><div class="dot"></div><div><div class="rname">올리브영 강남점</div><div class="rsub">강남구 강남대로</div></div></div>
+                <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 홍대점</div></div></div>
+              </div>
+            </div>
+            <div class="od-bar-d">
+              <div class="od-rows-a">
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--blue)"></div><span class="od-lbl-a">출발</span><span class="od-val-a">현재 위치</span></div>
+                <div class="od-div-a"></div>
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--purple)"></div><span class="od-lbl-a">도착</span><span class="od-val-a placeholder" style="color:#c7c7cc;font-weight:400;">어디로?</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-note" style="color:#636366;">토스트 + 결과 목록 + 인풋</div>
+      </div>
+
+      <!-- 화살표 -->
+      <div style="font-size:28px;margin-top:160px;color:#636366;">→</div>
+
+      <!-- 인풋 탭 후 토스트 사라짐 + 키보드 -->
+      <div class="phone-wrap good">
+        <div class="phone-label">✓ 인풋 탭 후 — 토스트 즉시 사라짐</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="sb"><span>9:41</span><span>●●●</span></div>
+          <div class="screen-d">
+            <div class="body-d">
+              <!-- 토스트 사라진 자리 (점선으로 표시) -->
+              <div class="toast-gone">
+                <span class="toast-gone-lbl">토스트 dismiss됨</span>
+              </div>
+              <div style="padding-top:44px;">
+                <div class="result-row" style="background:#eef4ff;"><div class="dot"></div><div><div class="rname">올리브영 강남점</div><div class="rsub">강남구 강남대로</div></div></div>
+                <div class="result-row"><div class="dot" style="background:#8a8a8e"></div><div><div class="rname">올리브영 홍대점</div></div></div>
+              </div>
+            </div>
+            <div class="od-bar-d">
+              <div class="od-rows-a">
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--blue)"></div><span class="od-lbl-a">출발</span><span class="od-val-a">현재 위치</span></div>
+                <div class="od-div-a"></div>
+                <div class="od-row-a"><div class="od-dot-a" style="background:var(--purple)"></div><span class="od-lbl-a">도착</span><span class="od-val-a typing">올<span class="cursor-a"></span></span></div>
+              </div>
+            </div>
+            <div class="kbd-a">
+              <div class="k">ㅂ</div><div class="k">ㅈ</div><div class="k">ㄷ</div><div class="k">ㄱ</div><div class="k">ㅅ</div><div class="k">ㅛ</div><div class="k">ㅕ</div><div class="k">ㅑ</div><div class="k">ㅐ</div><div class="k">ㅔ</div>
+              <div class="k">ㅁ</div><div class="k">ㄴ</div><div class="k">ㅇ</div><div class="k">ㄹ</div><div class="k">ㅎ</div><div class="k">ㅗ</div><div class="k">ㅓ</div><div class="k">ㅏ</div><div class="k">ㅣ</div><div></div>
+              <div class="k w2">⇧</div><div class="k">ㅋ</div><div class="k">ㅌ</div><div class="k">ㅊ</div><div class="k">ㅍ</div><div class="k">ㅠ</div><div class="k">ㅜ</div><div class="k">ㅡ</div><div class="k w2">⌫</div>
+              <div class="k w2">123</div><div class="k w5">스페이스</div><div class="k done">완료</div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-note" style="color:#34c759;">포커스 들어오는 순간 토스트 사라지고, 키보드가 결과 목록만 squeeze.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 최종 정리 -->
+  <div style="max-width:720px;background:#1c1c1f;border-radius:16px;padding:24px 28px;line-height:1.8;">
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px;">규칙 요약</div>
+    <div style="font-size:13px;color:#9a9aa2;">
+      <span style="color:#34c759;font-weight:700;">통일 규칙</span> — 인풋은 항상 하단 출발/도착 바(od-bar) 하나만. 상단 검색바 없음.<br>
+      <span style="color:#34c759;font-weight:700;">A (기본 구조)</span> — flex column: 결과 목록(flex:1) + od-bar + 키보드. 키보드가 올라오면 목록이 squeeze됨.<br>
+      <span style="color:#ff453a;font-weight:700;">B (하지 말 것)</span> — 인풋을 absolute로 지도 위에 floating. 키보드가 그냥 덮어버림.<br>
+      <span style="color:#34c759;font-weight:700;">C (토스트)</span> — 인풋 포커스 시 임시 알림 즉시 dismiss.
+    </div>
+  </div>
+
+</body>
+</html>

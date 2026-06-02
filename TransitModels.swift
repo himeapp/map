@@ -97,15 +97,59 @@ struct Vehicle: Identifiable {
     let number: String            // "271", "2호선" 등
     let headsign: String          // 방향 (예: "강남역 방향")
     let via: String               // 경유지 요약
+    // ODsay lane.type — 버스 노선 종류 코드 (간선/지선/광역 등 색상 결정)
+    let busType: Int?
+    // ODsay lane.subwayCode — 지하철 호선 코드 (1~9, 100번대 등 색상 결정)
+    let subwayLineCode: Int?
 }
 
 enum VehicleType {
     case bus, subway, walk
+    /// exclusionKey용 레거시 식별자 (변경 금지)
     var color: String {
         switch self {
         case .bus: return "bus"
         case .subway: return "subway"
         case .walk: return "walk"
+        }
+    }
+}
+
+extension Vehicle {
+    /// 다이내믹아일랜드 등 UI에서 쓸 hex 색상 문자열 (#rrggbb)
+    var lineColor: String {
+        switch type {
+        case .walk:
+            return "#8a8a8e"
+        case .bus:
+            switch busType {
+            case 1:        return "#0068b7" // 간선 (파랑)
+            case 2:        return "#53b332" // 지선 (초록)
+            case 3:        return "#ffc600" // 순환 (노랑)
+            case 4, 14:    return "#f72f08" // 광역·급행 (빨강)
+            case 5:        return "#5bb025" // 마을 (연초록)
+            case 6:        return "#007dc5" // 공항 (남색)
+            default:       return "#3d6bb3" // 경기 일반 등 기타
+            }
+        case .subway:
+            switch subwayLineCode {
+            case 1:        return "#0052a4"
+            case 2:        return "#009246"
+            case 3:        return "#ef7c1c"
+            case 4:        return "#00a5de"
+            case 5:        return "#996cac"
+            case 6:        return "#cd7c2f"
+            case 7:        return "#747f00"
+            case 8:        return "#e6186c"
+            case 9:        return "#bfa100"
+            case 100:      return "#f5a200" // 수인·분당
+            case 101:      return "#0065b3" // 공항철도
+            case 104:      return "#77c4a3" // 경의중앙
+            case 108:      return "#178c72" // 경춘
+            case 114:      return "#003da5" // 경강
+            case 116:      return "#8aadcb" // 서해
+            default:       return "#888888"
+            }
         }
     }
 }

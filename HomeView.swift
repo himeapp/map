@@ -208,7 +208,7 @@ struct QuickPlacesBar: View {
                     isPlaceholder: vm.homePlace == nil,
                     onTap: {
                         if let home = vm.homePlace {
-                            vm.useAsDestination(home)
+                            vm.useSavedPlace(home)
                         } else {
                             vm.startAddingPlace(category: .home)
                         }
@@ -223,7 +223,7 @@ struct QuickPlacesBar: View {
                     isPlaceholder: vm.workPlace == nil,
                     onTap: {
                         if let work = vm.workPlace {
-                            vm.useAsDestination(work)
+                            vm.useSavedPlace(work)
                         } else {
                             vm.startAddingPlace(category: .work)
                         }
@@ -237,7 +237,7 @@ struct QuickPlacesBar: View {
                         emoji: "⭐",
                         label: place.name,
                         isPlaceholder: false,
-                        onTap: { vm.useAsDestination(place) },
+                        onTap: { vm.useSavedPlace(place) },
                         onDelete: { vm.removePlace(id: place.id) }
                     )
                 }
@@ -313,6 +313,9 @@ struct SearchSheet: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if query.isEmpty {
+                        if vm.pendingSaveCategory == nil {
+                            quickChipsSection
+                        }
                         savedPlacesSection
                         recentSection
                     } else {
@@ -365,6 +368,43 @@ struct SearchSheet: View {
             try? await Task.sleep(nanoseconds: 250_000_000)
             focused = true
         }
+    }
+
+    // MARK: - 빠른 장소 칩 (시트 안) — 활성 필드(출발/도착)에 채움
+
+    var quickChipsSection: some View {
+        Group {
+            if vm.homePlace != nil || vm.workPlace != nil || !vm.favoritePlaces.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        if let home = vm.homePlace {
+                            sheetChip(emoji: "🏠", label: home.name) { vm.useSavedPlace(home) }
+                        }
+                        if let work = vm.workPlace {
+                            sheetChip(emoji: "💼", label: work.name) { vm.useSavedPlace(work) }
+                        }
+                        ForEach(vm.favoritePlaces) { place in
+                            sheetChip(emoji: "⭐", label: place.name) { vm.useSavedPlace(place) }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+            }
+        }
+    }
+
+    private func sheetChip(emoji: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(emoji).font(.system(size: 13))
+                Text(label).font(.system(size: 13, weight: .medium)).foregroundColor(.primary).lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.secondarySystemBackground), in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 저장 장소

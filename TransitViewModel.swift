@@ -153,6 +153,31 @@ final class TransitViewModel: ObservableObject {
         }
     }
 
+    /// 즐겨찾기 칩(집/회사/저장장소) 탭. 현재 활성 입력 필드(searchTarget)에 채운다.
+    /// - 출발 필드가 활성: 출발지로 들어감
+    /// - 도착 필드가 활성(기본): 도착지로 들어감
+    func useSavedPlace(_ place: Place) {
+        switch searchTarget {
+        case .from:
+            fromPlace = place
+            if toPlace != nil {
+                appState = .home
+                Task { await fetchRoutes() }
+            } else {
+                // 출발만 정해짐 → 도착 입력으로
+                startSearch(target: .to)
+            }
+        case .to:
+            useAsDestination(place)
+        }
+    }
+
+    /// 홈에서 입력 필드(출발/도착)를 선택만 한다(검색 시트는 열지 않음).
+    /// 이후 칩을 누르면 이 필드에 채워진다.
+    func focusField(_ target: SearchTarget) {
+        searchTarget = target
+    }
+
     func onSearchQueryChanged(_ query: String) {
         searchTask?.cancel()
         guard !query.isEmpty else {

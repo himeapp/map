@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — 전체 플로우</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", sans-serif;
+  background: #0f0f12;
+  color: #fff;
+  padding: 48px 24px 80px;
+  min-height: 100vh;
+}
+h1 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: #666; margin-bottom: 40px; }
+
+/* ── 전체 레이아웃 ── */
+.flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── 노드 공통 ── */
+.node {
+  width: 100%;
+  border-radius: 16px;
+  padding: 18px 20px;
+  position: relative;
+}
+.node-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  opacity: .55;
+  margin-bottom: 6px;
+}
+.node-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.3px;
+  margin-bottom: 4px;
+}
+.node-desc {
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: .7;
+}
+
+/* ── 색상 테마 ── */
+.theme-search  { background: #1a1a2e; border: 1.5px solid #2d2d55; }
+.theme-search .node-label { color: #a78bfa; }
+.theme-search .node-title { color: #c4b5fd; }
+
+.theme-main    { background: #0c2240; border: 1.5px solid #1a4a8a; }
+.theme-main .node-label   { color: #60a5fa; }
+.theme-main .node-title   { color: #93c5fd; }
+
+.theme-rt      { background: #0d2d1a; border: 1.5px solid #1a5e35; }
+.theme-rt .node-label     { color: #4ade80; }
+.theme-rt .node-title     { color: #86efac; }
+
+.theme-ride    { background: #1a2a0c; border: 1.5px solid #3a5a10; }
+.theme-ride .node-label   { color: #a3e635; }
+.theme-ride .node-title   { color: #bef264; }
+
+.theme-transfer { background: #2a1a0c; border: 1.5px solid #6a3a10; }
+.theme-transfer .node-label { color: #fb923c; }
+.theme-transfer .node-title { color: #fdba74; }
+
+.theme-arrive  { background: #1a0c2a; border: 1.5px solid #5a1a8a; }
+.theme-arrive .node-label  { color: #c084fc; }
+.theme-arrive .node-title  { color: #e9d5ff; }
+
+.theme-error   { background: #2a0f0f; border: 1.5px solid #6a1a1a; }
+.theme-error .node-label   { color: #f87171; }
+.theme-error .node-title   { color: #fca5a5; }
+
+.theme-connector { background: #161618; border: 1.5px solid #2a2a2e; }
+.theme-connector .node-label { color: #888; }
+.theme-connector .node-title { color: #bbb; }
+
+/* ── 스테이지 뱃지 ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.badge-blue  { background: #0a84ff; color: #fff; }
+.badge-green { background: #30d158; color: #fff; }
+.badge-lime  { background: #a3e635; color: #000; }
+.badge-orange{ background: #ff9f0a; color: #fff; }
+.badge-purple{ background: #bf5af2; color: #fff; }
+
+/* ── 화살표/커넥터 ── */
+.arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  width: 100%;
+}
+.arrow-line {
+  width: 2px;
+  background: #333;
+  flex: 1;
+  min-height: 20px;
+}
+.arrow-head {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid #333;
+}
+.arrow-label {
+  font-size: 11.5px;
+  color: #555;
+  text-align: center;
+  padding: 2px 10px;
+  background: #1a1a1e;
+  border-radius: 20px;
+  border: 1px solid #2a2a2e;
+  white-space: nowrap;
+}
+
+/* ── 분기 섹션 ── */
+.branch-row {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  align-items: flex-start;
+}
+.branch-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.branch-connector {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  position: relative;
+  margin: 6px 0;
+}
+.branch-line-h {
+  position: absolute;
+  top: 0;
+  height: 2px;
+  background: #333;
+}
+.branch-line-v {
+  width: 2px;
+  background: #333;
+  min-height: 24px;
+}
+
+/* ── 칩 태그 ── */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.chip {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.chip-blue   { background: #0a84ff22; color: #60a5fa; border: 1px solid #0a84ff44; }
+.chip-green  { background: #30d15822; color: #4ade80; border: 1px solid #30d15844; }
+.chip-orange { background: #ff9f0a22; color: #fb923c; border: 1px solid #ff9f0a44; }
+.chip-red    { background: #ff375f22; color: #f87171; border: 1px solid #ff375f44; }
+.chip-gray   { background: #ffffff11; color: #aaa;    border: 1px solid #ffffff22; }
+.chip-lime   { background: #a3e63522; color: #bef264; border: 1px solid #a3e63544; }
+.chip-purple { background: #bf5af222; color: #e879f9; border: 1px solid #bf5af244; }
+
+/* ── 분기 라인 시각화 ── */
+.fork {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  height: 32px;
+}
+.fork::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  width: 2px; height: 32px;
+  background: #333;
+  transform: translateX(-50%);
+}
+.fork-branches {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+}
+
+/* ── 주석 ── */
+.note {
+  font-size: 12px;
+  color: #555;
+  padding: 8px 14px;
+  background: #161618;
+  border-left: 2px solid #2a2a2e;
+  border-radius: 0 8px 8px 0;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+/* ── 링크 ── */
+a.node-link {
+  display: block;
+  text-decoration: none;
+  width: 100%;
+}
+a.node-link .node {
+  transition: filter .15s;
+}
+a.node-link:hover .node {
+  filter: brightness(1.15);
+}
+.link-badge {
+  font-size: 11px;
+  color: #0a84ff;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.link-badge::before { content: '→'; }
+
+/* ── 이중 분기 (메인 + 예외) ── */
+.dual-branch {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+/* ── 섹션 구분선 ── */
+.section-sep {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.section-sep::before, .section-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #222;
+}
+.section-sep span {
+  font-size: 11px;
+  color: #444;
+  white-space: nowrap;
+  letter-spacing: .5px;
+}
+
+/* ── 환승 루프 표시 ── */
+.loop-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #1a1a0c;
+  border: 1px dashed #5a5a10;
+  font-size: 12px;
+  color: #a3a360;
+  width: 100%;
+  margin-top: 8px;
+}
+</style>
+</head>
+<body>
+
+<h1>himemap 전체 UX 플로우</h1>
+<p class="subtitle">검색부터 도착까지 — 정상 경로 · 환승 · 예외 포함</p>
+
+<div class="flow">
+
+  <!-- ══════════════════════════════════
+       0단계: 검색
+  ══════════════════════════════════ -->
+  <div class="node theme-search" style="width:100%">
+    <div class="node-label">0단계 · 미구현</div>
+    <div class="node-title">🔍 검색 화면</div>
+    <div class="node-desc">출발지 / 도착지 입력. 현재 위치 자동 채우기, 최근 검색 기록, 즐겨찾기.</div>
+    <div class="chips">
+      <span class="chip chip-gray">현재 위치</span>
+      <span class="chip chip-gray">최근 검색</span>
+      <span class="chip chip-gray">즐겨찾기</span>
+      <span class="chip chip-purple">목적지 텍스트 검색</span>
+    </div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-label">검색 실행</div>
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       1단계: 경로 목록
+  ══════════════════════════════════ -->
+  <a class="node-link" href="ux_stage1.html">
+    <div class="node theme-main">
+      <div class="node-label">① 구현 완료</div>
+      <div class="node-title"><span class="badge badge-blue">①</span>전체 경로 목록</div>
+      <div class="node-desc">추천 경로 포함 5개 옵션. 소요시간 · 도보 · 환승 비교. 추천 경로 강조.</div>
+      <div class="chips">
+        <span class="chip chip-blue">추천 경로 강조</span>
+        <span class="chip chip-gray">5개 대안 비교</span>
+        <span class="chip chip-gray">도보·환승·버스 시각화</span>
+        <span class="chip chip-orange">경고 태그 (계단 많음 등)</span>
+      </div>
+      <div class="link-badge">ux_stage1.html 열기</div>
+    </div>
+  </a>
+
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-label">경로 선택 탭</div>
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       1→2 전환: 정류소 이동 안내
+  ══════════════════════════════════ -->
+  <div class="node theme-connector" style="width:100%">
+    <div class="node-label">전환 · 미구현</div>
+    <div class="node-title">🚶 출발 정류소까지 도보 안내</div>
+    <div class="node-desc">선택한 경로의 첫 탑승 정류소까지 도보 경로 표시. 몇 분, 몇 m, 지도 또는 텍스트.</div>
+    <div class="chips">
+      <span class="chip chip-gray">도보 거리·시간</span>
+      <span class="chip chip-gray">정류소 이름</span>
+      <span class="chip chip-gray">간단 지도 or 방향</span>
+    </div>
+    <div class="note">💡 도보가 매우 짧을 경우 (1분 이내) 이 단계를 건너뛰고 바로 ②로 넘어갈 수도 있음</div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-label">정류소 도착</div>
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       2단계: 정류소 실시간
+  ══════════════════════════════════ -->
+  <a class="node-link" href="ux_stage2.html">
+    <div class="node theme-rt">
+      <div class="node-label">② 구현 완료</div>
+      <div class="node-title"><span class="badge badge-green">②</span>정류소 실시간 — 탑승 대기</div>
+      <div class="node-desc">선택 경로의 버스 + 타도 되는 버스 목록. 실시간 도착 카운트다운. 탑승 확인 ("탔어요").</div>
+      <div class="chips">
+        <span class="chip chip-green">N분 후 실시간</span>
+        <span class="chip chip-blue">고른 길 버스 강조</span>
+        <span class="chip chip-gray">그 외 타도 되는 버스</span>
+        <span class="chip chip-green">탔어요 말풍선</span>
+      </div>
+      <div class="link-badge">ux_stage2.html 열기</div>
+    </div>
+  </a>
+
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-label">"탔어요" 탭 → 확인</div>
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       2→3 전환: 탑승 확인 모달
+  ══════════════════════════════════ -->
+  <div class="node theme-connector" style="width:100%">
+    <div class="node-label">전환 · 논의 필요</div>
+    <div class="node-title">✅ 탑승 확인 인터랙션</div>
+    <div class="node-desc">말풍선 탭 → ③으로 넘어가는 현재 방식이 충분한지. 잘못 탑승 취소 방법 필요.</div>
+    <div class="chips">
+      <span class="chip chip-orange">탑승 취소 (잘못 탔어요)</span>
+      <span class="chip chip-gray">버스 번호 확인 표시</span>
+    </div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-label">확정</div>
+    <div class="arrow-line" style="min-height:12px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       3단계: 탑승 후 추적
+  ══════════════════════════════════ -->
+  <a class="node-link" href="ux_stage3.html">
+    <div class="node theme-ride">
+      <div class="node-label">③ 구현 완료</div>
+      <div class="node-title"><span class="badge badge-lime">③</span>탑승 후 — 이동 추적</div>
+      <div class="node-desc">현재 정거장 · 남은 정거장 · 하차 강조. 타임라인 진행 애니메이션. 하차 알림.</div>
+      <div class="chips">
+        <span class="chip chip-lime">정거장 타임라인</span>
+        <span class="chip chip-lime">N정거장 남음</span>
+        <span class="chip chip-orange">하차 알림</span>
+        <span class="chip chip-gray">중간 정거장 접기/펼치기</span>
+      </div>
+      <div class="link-badge">ux_stage3.html 열기</div>
+    </div>
+  </a>
+
+  <!-- ══════════════════════════════════
+       ③ 이후 분기
+  ══════════════════════════════════ -->
+  <div class="arrow">
+    <div class="arrow-line" style="min-height:16px"></div>
+    <div class="arrow-label">하차 정류소 도달</div>
+    <div class="arrow-line" style="min-height:16px"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <div class="section-sep"><span>하차 후 분기</span></div>
+
+  <div class="branch-row" style="align-items:stretch">
+
+    <!-- 분기 A: 환승 있음 -->
+    <div class="branch-col">
+      <div class="node theme-transfer" style="width:100%; height:100%">
+        <div class="node-label">분기 A · 미구현</div>
+        <div class="node-title"><span class="badge badge-orange">↻</span>환승</div>
+        <div class="node-desc">다음 교통수단 탑승 정류소까지 이동. ② → ③ 루프 반복.</div>
+        <div class="chips">
+          <span class="chip chip-orange">환승 도보 안내</span>
+          <span class="chip chip-orange">다음 탑승까지 대기</span>
+        </div>
+        <div class="loop-indicator">↩ ② 정류소 화면으로 재진입</div>
+      </div>
+    </div>
+
+    <!-- 분기 B: 최종 도착 -->
+    <div class="branch-col">
+      <div class="node theme-arrive" style="width:100%; height:100%">
+        <div class="node-label">분기 B · 미구현</div>
+        <div class="node-title"><span class="badge badge-purple">✓</span>도착!</div>
+        <div class="node-desc">목적지 도착 완료. 소요 시간 요약. 다음 목적지 검색.</div>
+        <div class="chips">
+          <span class="chip chip-purple">도착 완료 화면</span>
+          <span class="chip chip-gray">총 소요 시간</span>
+          <span class="chip chip-gray">새 검색</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════
+       예외 케이스들
+  ══════════════════════════════════ -->
+  <div class="section-sep" style="margin-top:32px"><span>예외 · 에러 케이스</span></div>
+
+  <div class="branch-row">
+
+    <div class="branch-col">
+      <div class="node theme-error" style="width:100%">
+        <div class="node-label">예외 1 · 미구현</div>
+        <div class="node-title">🚌 버스 놓침 / 만차</div>
+        <div class="node-desc">탑승 못 했을 때. 다음 버스 자동 갱신 또는 재검색.</div>
+        <div class="chips">
+          <span class="chip chip-red">다음 버스로 전환</span>
+          <span class="chip chip-red">경로 재검색</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="branch-col">
+      <div class="node theme-error" style="width:100%">
+        <div class="node-label">예외 2 · 미구현</div>
+        <div class="node-title">🚨 경로 이탈</div>
+        <div class="node-desc">잘못 탔거나 방향이 다를 때. 현재 위치 기준 재탐색.</div>
+        <div class="chips">
+          <span class="chip chip-red">현위치 기준 재검색</span>
+          <span class="chip chip-orange">목적지 유지</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="branch-row" style="margin-top:12px">
+
+    <div class="branch-col">
+      <div class="node theme-error" style="width:100%">
+        <div class="node-label">예외 3 · 미구현</div>
+        <div class="node-title">🚇 지하철 탑승 버전</div>
+        <div class="node-desc">③이 지하철일 때. 호선 색상, 방향 (상행/하행), 몇 정거장.</div>
+        <div class="chips">
+          <span class="chip chip-blue">호선 색상</span>
+          <span class="chip chip-blue">방향 표시</span>
+          <span class="chip chip-gray">급행 여부</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="branch-col">
+      <div class="node theme-error" style="width:100%">
+        <div class="node-label">예외 4 · 미구현</div>
+        <div class="node-title">📡 실시간 데이터 없음</div>
+        <div class="node-desc">API 실패 or 정보 없는 노선. 시간표 기반 폴백 UI.</div>
+        <div class="chips">
+          <span class="chip chip-red">폴백 메시지</span>
+          <span class="chip chip-gray">예정 시간표</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════
+       범례
+  ══════════════════════════════════ -->
+  <div style="margin-top:48px; width:100%; border-top:1px solid #1e1e22; padding-top:24px;">
+    <div style="font-size:11px; color:#444; margin-bottom:12px; letter-spacing:.5px; text-transform:uppercase;">범례</div>
+    <div style="display:flex; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#888;">
+        <div style="width:12px;height:12px;border-radius:3px;background:#0c2240;border:1.5px solid #1a4a8a"></div> 구현 완료
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#888;">
+        <div style="width:12px;height:12px;border-radius:3px;background:#1a1a2e;border:1.5px solid #2d2d55"></div> 미구현 (기획 단계)
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#888;">
+        <div style="width:12px;height:12px;border-radius:3px;background:#161618;border:1.5px solid #2a2a2e"></div> 전환 단계 (논의 필요)
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#888;">
+        <div style="width:12px;height:12px;border-radius:3px;background:#2a0f0f;border:1.5px solid #6a1a1a"></div> 예외 케이스
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

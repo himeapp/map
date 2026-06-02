@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>himemap — 도착 완료</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --sec:#8a8a8e; --label:#1c1c1e;
+    --blue:#0a84ff; --green:#34c759; --orange:#ff9f0a; --purple:#bf5af2;
+    --line:#e9e9ed; --chip:#eef0f3;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; padding:50px 0 70px;
+    font-family:-apple-system,"SF Pro Text","Apple SD Gothic Neo","Pretendard",sans-serif;
+    background:radial-gradient(circle at 50% 0%,#26262b,#141417 60%); color:#fff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:24px; font-weight:700; margin:0 0 6px; letter-spacing:-.4px;}
+  .sub{color:#9a9aa2; font-size:14px; margin:0 0 40px; letter-spacing:-.1px;}
+
+  .phone{
+    width:390px; height:800px; background:var(--bg); border-radius:54px;
+    position:relative; overflow:hidden; border:12px solid #0b0b0d;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);
+  }
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%);
+    width:110px; height:32px; background:#000; border-radius:18px; z-index:60;}
+  .status{position:absolute; top:0; left:0; right:0; height:56px; z-index:55;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:18px 32px 0; color:var(--label);}
+  .status .time{font-size:16px; font-weight:600; letter-spacing:.2px; padding-left:8px;}
+  .status .ind{display:flex; align-items:center; gap:7px;}
+  .screen{position:absolute; inset:0; padding-top:56px; display:flex; flex-direction:column;}
+  .body{flex:1; overflow-y:auto; padding:0 16px 16px;}
+
+  /* 탑바 — 미니멀 */
+  .top-bar{display:flex; align-items:center; justify-content:flex-end;
+    padding:8px 18px 10px; background:var(--bg);}
+  .iconBtn{width:38px; height:38px; border-radius:50%; background:#e7e8ec;
+    display:flex; align-items:center; justify-content:center; flex:none;}
+
+  /* 도착 히어로 */
+  .arrive-hero{
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+    padding:32px 20px 24px;
+  }
+  .arrive-icon{
+    width:80px; height:80px; border-radius:50%; background:var(--green);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 0 12px rgba(52,199,89,.15), 0 0 0 24px rgba(52,199,89,.06);
+    margin-bottom:20px;
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+  .arrive-title{font-size:26px; font-weight:800; color:var(--label); letter-spacing:-.5px; margin-bottom:6px;}
+  .arrive-dest{font-size:15px; color:var(--sec); margin-bottom:4px;}
+  .arrive-time{
+    display:inline-block; font-size:14px; font-weight:700; color:var(--green);
+    background:rgba(52,199,89,.12); padding:5px 14px; border-radius:20px; margin-top:6px;
+  }
+
+  /* 요약 카드 */
+  .summary{
+    background:var(--card); border-radius:20px; padding:20px 18px;
+    box-shadow:0 1px 4px rgba(0,0,0,.07); margin-bottom:14px;
+  }
+  .sum-label{font-size:12px; font-weight:700; color:var(--sec); letter-spacing:.4px;
+    text-transform:uppercase; margin-bottom:14px;}
+  .sum-row{display:flex; align-items:center; justify-content:space-between;
+    padding:10px 0; border-bottom:1px solid var(--line);}
+  .sum-row:last-child{border-bottom:none;}
+  .sum-k{font-size:13px; color:var(--sec);}
+  .sum-v{font-size:14px; font-weight:700; color:var(--label);}
+
+  /* 여정 구간 요약 (미니 타임라인) */
+  .journey-mini{
+    background:var(--card); border-radius:20px; padding:18px;
+    box-shadow:0 1px 4px rgba(0,0,0,.07); margin-bottom:14px;
+  }
+  .jm-label{font-size:12px; font-weight:700; color:var(--sec); letter-spacing:.4px;
+    text-transform:uppercase; margin-bottom:14px;}
+  .jm-row{display:flex; align-items:center; gap:8px; padding:5px 0;}
+  .jm-dot{width:8px; height:8px; border-radius:50%; background:var(--green); flex:none;}
+  .jm-seg{flex:1; height:3px; border-radius:2px; background:var(--green);}
+  .jm-text{font-size:13px; color:var(--sec);}
+
+  /* 액션 버튼들 */
+  .actions{display:flex; flex-direction:column; gap:10px; padding:0 0 8px;}
+  .btn-primary{
+    width:100%; padding:17px; border-radius:16px; background:var(--blue);
+    font-size:16px; font-weight:700; color:#fff; text-align:center;
+    border:none; font-family:inherit; cursor:pointer;
+  }
+  .btn-secondary{
+    width:100%; padding:15px; border-radius:16px; background:var(--card);
+    font-size:15px; font-weight:600; color:var(--label); text-align:center;
+    border:1px solid var(--line); font-family:inherit; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  .note{margin-top:38px; font-size:13px; color:#9a9aa2; line-height:1.6;
+    max-width:390px; text-align:center;}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>도착 완료</h1>
+  <p class="sub">목적지 도착 · 여정 요약 · 새 검색</p>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span class="time">10:22</span>
+      <span class="ind">
+        <svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1c1c1e"/><rect x="5" y="5" width="3" height="6" rx="1" fill="#1c1c1e"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="#1c1c1e"/><rect x="15" y="0" width="3" height="11" rx="1" fill="#1c1c1e"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5l7-7A9.8 9.8 0 008 1.5 9.8 9.8 0 001 4.5z" fill="none" stroke="#1c1c1e" stroke-width="1.4"/><circle cx="8" cy="9" r="1.4" fill="#1c1c1e"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12"><rect x="1" y="1" width="20" height="10" rx="3" fill="none" stroke="#1c1c1e" stroke-opacity=".4"/><rect x="2.5" y="2.5" width="17" height="7" rx="1.5" fill="#1c1c1e"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="#1c1c1e" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <div class="screen">
+      <div class="top-bar">
+        <div class="iconBtn">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 8h12M8 2l6 6-6 6" fill="none" stroke="#1c1c1e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- 도착 히어로 -->
+        <div class="arrive-hero">
+          <div class="arrive-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="#fff"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+          </div>
+          <div class="arrive-title">도착했어요!</div>
+          <div class="arrive-dest">올리브영 강남점</div>
+          <div class="arrive-time">예정보다 1분 빠름 🎉</div>
+        </div>
+
+        <!-- 여정 요약 수치 -->
+        <div class="summary">
+          <div class="sum-label">이번 여정 요약</div>
+          <div class="sum-row">
+            <span class="sum-k">총 소요 시간</span>
+            <span class="sum-v">40분</span>
+          </div>
+          <div class="sum-row">
+            <span class="sum-k">출발</span>
+            <span class="sum-v">9:41 · 현재 위치</span>
+          </div>
+          <div class="sum-row">
+            <span class="sum-k">도착</span>
+            <span class="sum-v">10:22 · 올리브영 강남점</span>
+          </div>
+          <div class="sum-row">
+            <span class="sum-k">이용한 교통수단</span>
+            <span class="sum-v">버스 740</span>
+          </div>
+          <div class="sum-row">
+            <span class="sum-k">도보</span>
+            <span class="sum-v">총 1.1km</span>
+          </div>
+        </div>
+
+        <!-- 미니 여정 타임라인 -->
+        <div class="journey-mini">
+          <div class="jm-label">경로</div>
+          <div style="display:flex; align-items:center; gap:0; padding:8px 0">
+            <!-- 현재 위치 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--blue)"></div>
+              <div style="font-size:11px;color:var(--sec);text-align:center;line-height:1.3">현재<br>위치</div>
+            </div>
+            <!-- 도보 -->
+            <div style="flex:1;height:3px;background:linear-gradient(90deg,var(--blue),var(--green))"></div>
+            <!-- 정류소 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--green)"></div>
+              <div style="font-size:11px;color:var(--sec);text-align:center;line-height:1.3">양화로<br>입구</div>
+            </div>
+            <!-- 버스 -->
+            <div style="flex:2;height:3px;background:var(--green)"></div>
+            <!-- 하차 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--green)"></div>
+              <div style="font-size:11px;color:var(--sec);text-align:center;line-height:1.3">강남역<br>정류소</div>
+            </div>
+            <!-- 도보 -->
+            <div style="flex:1;height:3px;background:var(--green)"></div>
+            <!-- 목적지 -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:50px">
+              <div style="width:14px;height:14px;border-radius:50%;background:var(--green);border:2px solid #fff;box-shadow:0 0 0 3px rgba(52,199,89,.3)"></div>
+              <div style="font-size:11px;color:var(--green);text-align:center;font-weight:700;line-height:1.3">도착</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 액션 버튼 -->
+        <div class="actions">
+          <button class="btn-primary">새 목적지 검색</button>
+          <button class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="#1c1c1e"/></svg>
+            즐겨찾기에 추가
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    <b>도착 완료</b> — 목적지 근처 하차 감지 시 자동 전환.<br>
+    총 소요 시간·이용 수단·도보 요약 표시.<br>
+    "새 목적지 검색" → <b>0단계 검색</b>으로 돌아감.
+  </p>
+</body>
+</html>
