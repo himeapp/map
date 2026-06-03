@@ -136,12 +136,21 @@ struct DepartureGroupSection: View {
                     .font(.system(size: 19, weight: .bold))
                     .lineLimit(1)
                 if let w = group.walkMinutes {
-                    Text("도보 \(w)분")
-                        .font(.system(size: 13, weight: .semibold))
+                    Button(action: { vm.walkToStop(group) }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("도보 \(w)분")
+                                .font(.system(size: 13, weight: .semibold))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                        }
                         .foregroundColor(.appBlue)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)
                         .background(Color.appBlue.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
                 Spacer()
                 if isLead {

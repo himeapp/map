@@ -22,12 +22,37 @@ struct ContentView: View {
             case .home, .searching:
                 HomeView()
 
+            case .walkingToStop:
+                // 지도 위에 도보 안내 모달 (콘텐츠 높이 자동 → medium)
+                ZStack(alignment: .bottom) {
+                    HomeView()
+                    BottomSheet {
+                        WalkToStopView()
+                    }
+                }
+
             case .waiting:
                 // 지도 위에 바텀시트로
                 ZStack(alignment: .bottom) {
                     HomeView()
                     BottomSheet {
                         WaitingView()
+                    }
+                }
+
+            case .rerouting:
+                ZStack(alignment: .bottom) {
+                    HomeView()
+                    BottomSheet {
+                        RerouteView()
+                    }
+                }
+
+            case .transferWalking:
+                ZStack(alignment: .bottom) {
+                    HomeView()
+                    BottomSheet(detent: .large) {
+                        TransferView()
                     }
                 }
 

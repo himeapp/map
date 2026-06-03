@@ -19,11 +19,26 @@ struct OnboardView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     busBadge(option: option)
                     rideInfo(option: option)
-                    timeline(option: option)
+                    if option.vehicle.type == .subway {
+                        SubwayRouteMap(
+                            lineColor: Color(hex: option.vehicle.lineColor),
+                            originName: option.originStop?.name ?? "현재역",
+                            exitName: getoffName(option),
+                            upcomingStops: option.afterSteps.first?.stopsCount ?? 3
+                        )
+                        .padding(.bottom, 8)
+                    } else {
+                        timeline(option: option)
+                    }
                     getoffBox(option: option)
                         .padding(.top, 4)
-                    arrivedButton
-                        .padding(.top, 12)
+                    if hasTransfer(option) {
+                        transferButton
+                            .padding(.top, 12)
+                    } else {
+                        arrivedButton
+                            .padding(.top, 12)
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 6)
@@ -141,6 +156,27 @@ struct OnboardView: View {
         .buttonStyle(.plain)
     }
 
+    // 환승 구간이 남았을 때: "환승하러 내렸어요" → 환승 도보 화면
+    var transferButton: some View {
+        Button(action: vm.startTransfer) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.swap")
+                    .font(.system(size: 17, weight: .bold))
+                Text("환승하러 내렸어요")
+                    .font(.system(size: 16, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(Color.appBlue, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func hasTransfer(_ option: BoardableOption) -> Bool {
+        option.afterSteps.contains { $0.type == .transfer }
+    }
+
     // MARK: - 긴급 카드 영역
 
     var emergencyArea: some View {
@@ -185,7 +221,8 @@ struct OnboardView: View {
         VStack(spacing: 0) {
             emergencyOption(icon: "mappin.and.ellipse", tint: .appRed,
                             title: "정거장을 지나쳤어요", sub: "현재 위치에서 다시 경로 탐색") {
-                vm.exitOnboard(); Task { await vm.fetchRoutes() }
+                emergencyOpen = false
+                vm.startReroute()
             }
             Divider().padding(.leading, 14)
             emergencyOption(icon: "arrow.uturn.left", tint: .appOrange,
@@ -306,6 +343,86 @@ struct StepRow: View {
             let stops = step.stopsCount.map { " · \($0)정거장" } ?? ""
             return num + stops
         case .arrive:   return "목적지 도착"
+        }
+    }
+}
+
+// MARK: - 지하철 가로 노선도 (ux_stage3_sub)
+//
+// 현재역(펄스) → 앞으로 갈 역들(회색) → 하차역(강조)을 가로로. 호선색은 vehicle.lineColor.
+// 역별 실시간 위치 데이터가 없으므로 정거장 수(upcomingStops)로 점만 표현한다.
+
+struct SubwayRouteMap: View {
+    let lineColor: Color
+    let originName: String
+    let exitName: String
+    let upcomingStops: Int
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            ZStack(alignment: .leading) {
+                // 기준선 (지나온 = 회색, 앞으로 = 호선색은 점으로 표현하므로 라인은 호선색)
+                Capsule()
+                    .fill(lineColor.opacity(0.85))
+                    .frame(height: 6)
+                    .padding(.horizontal, 37)
+                    .padding(.top, 26)
+
+                HStack(spacing: 0) {
+                    station(name: originName, kind: .current)
+                    ForEach(0..<max(0, upcomingStops - 1), id: \.self) { _ in
+                        station(name: "", kind: .upcoming)
+                    }
+                    station(name: exitName, kind: .exit)
+                }
+            }
+        }
+        .frame(height: 64)
+    }
+
+    enum StationKind { case current, upcoming, exit }
+
+    func station(name: String, kind: StationKind) -> some View {
+        VStack(spacing: 8) {
+            Text(name)
+                .font(.system(size: kind == .current ? 12.5 : 11,
+                              weight: kind == .upcoming ? .regular : .bold))
+                .foregroundColor(nameColor(kind))
+                .lineLimit(1)
+                .frame(height: 16)
+
+            dot(kind)
+        }
+        .frame(width: 74)
+    }
+
+    @ViewBuilder
+    func dot(_ kind: StationKind) -> some View {
+        switch kind {
+        case .current:
+            Circle()
+                .fill(lineColor)
+                .frame(width: 20, height: 20)
+                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
+                .overlay(Circle().stroke(lineColor.opacity(0.25), lineWidth: 5).scaleEffect(1.5))
+        case .upcoming:
+            Circle()
+                .fill(Color(hex: "#c8ccd4"))
+                .frame(width: 13, height: 13)
+                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2.5))
+        case .exit:
+            Circle()
+                .fill(Color(.systemBackground))
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(lineColor, lineWidth: 3))
+        }
+    }
+
+    func nameColor(_ kind: StationKind) -> Color {
+        switch kind {
+        case .current:  return lineColor
+        case .upcoming: return .secondary
+        case .exit:     return .primary
         }
     }
 }

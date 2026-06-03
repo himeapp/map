@@ -86,8 +86,11 @@ final class TransitViewModel: ObservableObject {
     enum AppState {
         case home
         case searching
+        case walkingToStop // 정류소까지 도보 안내 (① → ② 사이)
         case waiting      // 버스 대기 화면 (시내)
         case onboard      // 탑승 후 이후 경로
+        case transferWalking // 하차 후 다음 정류소까지 환승 도보
+        case rerouting    // 경로 이탈 → 현위치 기준 재탐색
         case arrived      // 목적지 도착 완료 (여정 요약)
         case intercity    // 도시 간 (시외/고속/열차 시간표)
     }
@@ -95,6 +98,9 @@ final class TransitViewModel: ObservableObject {
     // 여정 시각 기록 (도착 요약용)
     @Published var boardedAt: Date?   // 탑승 시각
     @Published var arrivedAt: Date?   // 도착 시각
+
+    // 도보 안내 중인 목표 출발 정류장 그룹
+    @Published var walkingGroup: DepartureGroup?
 
     private let kakao = KakaoTransitService.shared
     private let odsay = ODsayService.shared
@@ -434,6 +440,55 @@ final class TransitViewModel: ObservableObject {
         appState = .arrived
     }
 
+    // MARK: - 정류소까지 도보 안내 (① → ②)
+    //
+    // 출발 정류장 그룹을 고른 뒤 그 정류장까지 걷는 구간. "정류소 도착" 선언 시 ② 대기 화면으로.
+
+    func walkToStop(_ group: DepartureGroup) {
+        walkingGroup = group
+        appState = .walkingToStop
+    }
+
+    func arriveAtStop() {
+        walkingGroup = nil
+        appState = .waiting
+    }
+
+    // MARK: - 경로 이탈 → 재탐색
+    //
+    // 트리거: 위치 추적 경로 이탈 감지(현재는 OnboardView 긴급카드에서 수동 진입).
+    // 출발=현위치(원래 fromPlace 유지), 도착=그대로. "다시 탐색"이면 현 시점 경로 재조회.
+
+    func startReroute() {
+        appState = .rerouting
+    }
+
+    func confirmReroute() {
+        stopBusTracking()
+        selectedOption = nil
+        Task { await fetchRoutes() }   // 성공 시 .waiting 으로 전환됨
+    }
+
+    func cancelReroute() {
+        // 탑승 중이었으면 다시 탑승 화면으로, 아니면 대기 화면으로
+        appState = selectedOption != nil ? .onboard : .waiting
+    }
+
+    // MARK: - 환승 도보 (멀티 leg)
+    //
+    // 트리거: 탑승 후 경로(afterSteps)에 환승(transfer) 구간이 있을 때 하차 → 다음 정류소까지 도보.
+
+    func startTransfer() {
+        stopBusTracking()
+        appState = .transferWalking
+    }
+
+    func arriveAtTransferStop() {
+        // 다음 정류소 도착 → 다시 대기 화면에서 다음 수단 탑승
+        selectedOption = nil
+        appState = .waiting
+    }
+
     // MARK: - 실시간 차량 위치 폴링
 
     func startBusTracking(cityCode: Int, routeId: String, intervalSeconds: TimeInterval = 15) {
@@ -567,6 +622,7 @@ final class TransitViewModel: ObservableObject {
         excludedKeys = []
         boardedAt = nil
         arrivedAt = nil
+        walkingGroup = nil
         intercityOptions = []
         intercityOrigin = nil
         intercityDest = nil
