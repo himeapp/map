@@ -37,6 +37,7 @@ xcodebuild -project himemap.xcodeproj -scheme himemap \
 - **경로 이탈**(`RerouteView.swift`) → `ux_reroute`: 빨간 경고 배너, OD카드(출발=현위치/도착=그대로), "다시 탐색"→`confirmReroute`(=`fetchRoutes`). VM `.rerouting` + `startReroute/confirmReroute/cancelReroute`.
 - **도보 안내**(`WalkToStopView.swift`) → `ux_stage_walk`: 방향 헤더, 진행바, 목표 정류소 + 버스 ETA, "정류소 도착"→`arriveAtStop`. VM `.walkingToStop` + `walkingGroup`.
 - **환승**(`TransferView.swift`) → `ux_transfer`: "○○번 하차 완료" 배너, 회색 점선 도보 타임라인(하차→걷는 중→도착 정류소), "정류소 도착"→`arriveAtTransferStop`. VM `.transferWalking`.
+- **홈 기본 지도앱 UI** — `LocationManager`(신규, CLLocationManager 래퍼: 권한 요청·현재 좌표 publish). `HomeView`에 Apple Maps식 "내 위치" 버튼(`LocateButton`) + 지도 recenter(`MapController` — MKMapView weak ref, `recenter()`로 userLocation 중앙/없으면 follow 모드). 권한 거부 시 설정 앱으로 유도. `MapView`에 나침반(showsCompass) 추가. **탑승/하차 판단엔 미사용**(유저 선언 유지). → 아래 "다음 할 일 2(트리거 실측화)"의 토대.
 
 ## 다음 할 일
 
