@@ -3,12 +3,35 @@ import MapKit
 
 struct HomeView: View {
     @EnvironmentObject var vm: TransitViewModel
+    @StateObject private var location = LocationManager.shared
+    @StateObject private var mapController = MapController()
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // MARK: - 지도 (항상 배경)
-            MapView(positions: vm.livePositions)
+            MapView(positions: vm.livePositions, controller: mapController)
                 .ignoresSafeArea()
+
+            // MARK: - 우측 지도 컨트롤 (내 위치) — 홈에서만
+            if vm.appState == .home {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        LocateButton(denied: location.isDenied) {
+                            if location.isDenied {
+                                openSettings()
+                            } else {
+                                location.start()
+                                mapController.recenter()
+                            }
+                        }
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 12)
+                }
+                .transition(.opacity)
+            }
 
             // MARK: - 홈: 하단 출발/도착 카드 (기본 지도앱 스타일)
             if vm.appState == .home {
@@ -16,6 +39,7 @@ struct HomeView: View {
                     .transition(.move(edge: .bottom))
             }
         }
+        .onAppear { location.start() }
         // MARK: - 검색은 네이티브 모달 시트로
         .sheet(isPresented: Binding(
             get: { vm.appState == .searching },
@@ -30,24 +54,76 @@ struct HomeView: View {
                 .environmentObject(vm)
         }
     }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+}
+
+// MARK: - 내 위치 버튼 (Apple Maps 스타일)
+
+struct LocateButton: View {
+    let denied: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: denied ? "location.slash.fill" : "location.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(denied ? .secondary : .appBlue)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 지도 명령 컨트롤러 (recenter)
+
+final class MapController: ObservableObject {
+    weak var mapView: MKMapView?
+
+    /// 내 위치로 재중앙. 위치를 모르면 추적 모드(follow)로 전환.
+    func recenter() {
+        guard let map = mapView else { return }
+        if let loc = map.userLocation.location {
+            let region = MKCoordinateRegion(
+                center: loc.coordinate,
+                latitudinalMeters: 800,
+                longitudinalMeters: 800
+            )
+            map.setRegion(region, animated: true)
+        } else {
+            map.setUserTrackingMode(.follow, animated: true)
+        }
+    }
 }
 
 // MARK: - 지도
 
 struct MapView: UIViewRepresentable {
     var positions: [BusPosition] = []
+    var controller: MapController? = nil
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.showsUserLocation = true
         map.mapType = .standard
         map.delegate = context.coordinator
+        map.showsCompass = true
         // 서울 기본 위치
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.5511, longitude: 126.9258),
             span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
         )
         map.setRegion(region, animated: false)
+        controller?.mapView = map
         return map
     }
 
