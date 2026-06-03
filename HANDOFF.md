@@ -31,36 +31,24 @@ xcodebuild -project himemap.xcodeproj -scheme himemap \
 
 - `Theme.swift` — 신규. 색 토큰, `Color(hex:)`, `Vehicle.displayColor`(등급별 번호색), `ArrivalTier`(곧/중간/늦음), `DynamicIslandPill`, `ETABadge`.
 - **즐겨찾기 칩 출발/도착 동작** — `TransitViewModel.useSavedPlace(_:)` 추가. 활성 입력 필드(`searchTarget`)를 따라 출발/도착에 채움. 홈 칩 + 검색 시트 안 칩 모두 연결(`HomeView.swift`).
-- **정류소 실시간**(`WaitingView.swift`) → `ux_stage2`: 도착 바, 정류장 그룹 헤더, HTML식 버스 행(등급색 tabular 번호 + 방향/경유 + ETA 배지), 첫 그룹 "고른 길"·"추천" 강조, **"탔어요" 2탭 탑승**(1탭=확인칩, 2탭=`boardVehicle`).
-- **탑승 후**(`OnboardView.swift`) → `ux_stage3`: 버스 배지, "○○에서 내려요", 세로 타임라인(afterSteps), 하차 박스, **긴급 카드(확장형)** — 정거장 지나침/반대방향/목적지 변경.
+- **정류소 실시간**(`WaitingView.swift`) → `ux_stage2`: 도착 바, 정류장 그룹 헤더, HTML식 버스 행(등급색 tabular 번호 + 방향/경유 + ETA 배지), 첫 그룹 "고른 길"·"추천" 강조, **"탔어요" 2탭 탑승**(1탭=확인칩, 2탭=`boardVehicle`). 정류장 헤더 **"도보 N분" 배지 탭 → 도보 안내**(`.walkingToStop`) 진입.
+- **탑승 후**(`OnboardView.swift`) → `ux_stage3`: 버스 배지, "○○에서 내려요", 세로 타임라인(afterSteps), 하차 박스, **긴급 카드(확장형)** — 정거장 지나침(→`startReroute`)/반대방향/목적지 변경. **지하철이면 `SubwayRouteMap`(가로 노선도)로 분기**. 환승 구간 있으면 "환승하러 내렸어요" 버튼(→`startTransfer`), 없으면 "도착했어요"(→`arrive`).
+- **도착 완료**(`ArriveView.swift`) → `ux_arrive`: 초록 체크 히어로, 여정 요약(총소요·출발/도착 시각·수단·도보), 미니 가로 타임라인, "새 목적지 검색"/"즐겨찾기 추가". VM `.arrived` + `arrive()`, `boardedAt`/`arrivedAt` 기록.
+- **경로 이탈**(`RerouteView.swift`) → `ux_reroute`: 빨간 경고 배너, OD카드(출발=현위치/도착=그대로), "다시 탐색"→`confirmReroute`(=`fetchRoutes`). VM `.rerouting` + `startReroute/confirmReroute/cancelReroute`.
+- **도보 안내**(`WalkToStopView.swift`) → `ux_stage_walk`: 방향 헤더, 진행바, 목표 정류소 + 버스 ETA, "정류소 도착"→`arriveAtStop`. VM `.walkingToStop` + `walkingGroup`.
+- **환승**(`TransferView.swift`) → `ux_transfer`: "○○번 하차 완료" 배너, 회색 점선 도보 타임라인(하차→걷는 중→도착 정류소), "정류소 도착"→`arriveAtTransferStop`. VM `.transferWalking`.
 
-## 다음 할 일 (우선순위 순)
+## 다음 할 일
 
-기존 `appState`(`TransitViewModel.swift`)는 `home / searching / waiting / onboard / intercity`. 아래 화면들은 **새 상태 추가 + 트리거 연결**이 필요하다. `ContentView.swift`의 `switch vm.appState`에 케이스 추가하는 구조.
+1. **검색 화면**(`ux_stage0.html`) 정교화 — 현재 네이티브 `.sheet` 유지. 기획서의 하단 출발/도착 바 + 키보드 밀어올림까지 맞출지는 선택(네이티브 시트가 더 iOS다움). `ux_keyboard_cases.html` 참고. **(미착수 — 우선순위 낮음/선택)**
 
-1. **도착 완료** (`ux_arrive.html`) — 신규 `ArriveView`.
-   - 트리거(택1): 탑승 후 목적지 좌표 근접 감지 / 사용자가 "내렸어요" 탭 / 마지막 afterStep(arrive) 도달.
-   - 내용: 초록 체크 히어로, 여정 요약(총 소요·출발/도착 시각·수단·도보), 미니 타임라인, "새 목적지 검색"→`goHome()`+`startSearch`.
-   - VM: `appState`에 `.arrived` 추가 + `arrive()` 메서드.
+2. **트리거 실측화(시뮬 → 실제)** — 현재 화면 전환은 대부분 *사용자 선언/수동 탭* 기반(도착·환승·도보 도착·이탈). 위치 서비스(CLLocationManager) 연동해서:
+   - 도착 감지: 목적지 좌표 근접 시 `arrive()` 자동 제안.
+   - 도보/환승 진행: 실제 거리 기반 진행바·남은 거리.
+   - 이탈 감지: 경로 폴리라인 이탈 시 `startReroute()` 자동.
+   - 단, 핵심 컨셉상 **탑승/하차는 유저 선언 유지**(앱이 멋대로 "탔다" 판단 금지).
 
-2. **경로 이탈** (`ux_reroute.html`) — 신규 `RerouteView` 또는 오버레이.
-   - 트리거: 위치 추적(`livePositions`/사용자 위치) 경로 이탈 감지. 지금은 `OnboardView` 긴급카드 "정거장 지나침"이 `exitOnboard`+`fetchRoutes`로 임시 처리 중 → 이걸 reroute 화면으로 교체.
-   - 내용: 빨간 경고 배너, 출발=현위치(고정)/도착=그대로, "지금 위치에서 다시 탐색"→`fetchRoutes()`.
-
-3. **도보 안내** (`ux_stage_walk.html`) — 경로 선택 → 정류소 탑승 **사이** 상태.
-   - 트리거: 정류소까지 도보 구간이 있을 때 `waiting` 진입 전 거침. (단순화하려면 스킵 가능 — 결정 필요)
-   - 내용: 지도 + 하단 모달(방향 "직진 후 좌회전", 진행바, 남은 거리, 목표 정류소 행 740·3분 후). 다이나믹 아일랜드 회색 점 "○○ 정류소로 도보".
-   - VM: `.walkingToStop` 추가 + 진행 시뮬/위치 기반 진행.
-
-4. **지하철 트래킹** (`ux_stage3_sub.html`) — 탑승 수단이 지하철일 때 `OnboardView` 분기.
-   - 내용: 가로 노선도(지나온 역 회색/현재역 초록 펄스/하차역 강조)가 왼쪽으로 흐름. 호선 색은 `Vehicle.lineColor`(이미 모델에 있음) 사용.
-   - 구현: `OnboardView`에서 `selectedOption.vehicle.type == .subway`면 노선도형 타임라인, 아니면 현재 세로 타임라인.
-
-5. **환승** (`ux_transfer.html`) — 멀티 leg 경로에서 하차 후 다음 정류소까지 도보.
-   - 트리거: afterSteps에 transfer/board 후속 구간이 있을 때.
-   - 내용: 회색 점선 도보 경로, "○○번 하차 완료" 초록 배너, 도보 타임라인(하차→걷는 중→도착 정류소).
-
-6. **검색 화면**(`ux_stage0.html`) 정교화 — 현재 네이티브 `.sheet` 유지. 기획서의 하단 출발/도착 바 + 키보드 밀어올림까지 맞출지는 선택(네이티브 시트가 더 iOS다움). `ux_keyboard_cases.html` 참고.
+3. **지하철 노선도 실데이터** — 현재 `SubwayRouteMap`은 정거장 *수*만으로 점을 그림(역명은 출발/하차만). 경유 역명 리스트를 ODsay 경로 응답에서 뽑아 채우면 실제 노선도가 됨.
 
 ## 참고 / 주의
 
