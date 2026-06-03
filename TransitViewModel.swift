@@ -88,8 +88,13 @@ final class TransitViewModel: ObservableObject {
         case searching
         case waiting      // 버스 대기 화면 (시내)
         case onboard      // 탑승 후 이후 경로
+        case arrived      // 목적지 도착 완료 (여정 요약)
         case intercity    // 도시 간 (시외/고속/열차 시간표)
     }
+
+    // 여정 시각 기록 (도착 요약용)
+    @Published var boardedAt: Date?   // 탑승 시각
+    @Published var arrivedAt: Date?   // 도착 시각
 
     private let kakao = KakaoTransitService.shared
     private let odsay = ODsayService.shared
@@ -401,6 +406,8 @@ final class TransitViewModel: ObservableObject {
 
     func boardVehicle(_ option: BoardableOption) {
         selectedOption = option
+        boardedAt = Date()
+        arrivedAt = nil
         appState = .onboard
         // 버스면 실시간 위치 추적 자동 시작
         if option.vehicle.type == .bus,
@@ -414,6 +421,17 @@ final class TransitViewModel: ObservableObject {
         stopBusTracking()
         selectedOption = nil
         appState = .waiting
+    }
+
+    // MARK: - 도착 완료
+    //
+    // 트리거: 사용자가 "내렸어요/도착" 탭 (또는 목적지 근접 감지). 차량 추적은 멈추되
+    // selectedOption / fromPlace / toPlace 는 여정 요약을 위해 유지한다. goHome 에서 초기화.
+
+    func arrive() {
+        stopBusTracking()
+        arrivedAt = Date()
+        appState = .arrived
     }
 
     // MARK: - 실시간 차량 위치 폴링
@@ -547,6 +565,8 @@ final class TransitViewModel: ObservableObject {
         boardableOptions = []
         selectedOption = nil
         excludedKeys = []
+        boardedAt = nil
+        arrivedAt = nil
         intercityOptions = []
         intercityOrigin = nil
         intercityDest = nil

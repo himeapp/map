@@ -22,6 +22,8 @@ struct OnboardView: View {
                     timeline(option: option)
                     getoffBox(option: option)
                         .padding(.top, 4)
+                    arrivedButton
+                        .padding(.top, 12)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 6)
@@ -117,6 +119,26 @@ struct OnboardView: View {
         .padding(.horizontal, 14).padding(.vertical, 11)
         .background(Color.appBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBlue, lineWidth: 1.5))
+    }
+
+    // MARK: - 도착 완료 트리거 ("내렸어요/도착했어요")
+    //
+    // 앱은 하차를 자동으로 못 잡으므로(GPS 한계) 탑승과 마찬가지로 유저의 선언으로 받는다.
+
+    var arrivedButton: some View {
+        Button(action: vm.arrive) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 17, weight: .bold))
+                Text("도착했어요")
+                    .font(.system(size: 16, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(Color.appGreen, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 긴급 카드 영역

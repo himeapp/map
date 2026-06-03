@@ -39,6 +39,15 @@ struct ContentView: View {
                     }
                 }
 
+            case .arrived:
+                // 도착 요약은 지도를 가리는 전체 화면 시트
+                ZStack(alignment: .bottom) {
+                    HomeView()
+                    BottomSheet(detent: .large) {
+                        ArriveView()
+                    }
+                }
+
             case .intercity:
                 ZStack(alignment: .bottom) {
                     HomeView()
