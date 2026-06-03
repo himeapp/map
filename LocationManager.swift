@@ -29,6 +29,14 @@ final class LocationManager: NSObject, ObservableObject {
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
     }
 
+    /// 현재 위치에서 주어진 좌표까지 거리(m). 위치를 모르면 nil.
+    func distance(to coord: Coordinate) -> CLLocationDistance? {
+        guard let cur = current else { return nil }
+        let here = CLLocation(latitude: cur.latitude, longitude: cur.longitude)
+        let there = CLLocation(latitude: coord.lat, longitude: coord.lng)
+        return here.distance(from: there)
+    }
+
     /// 권한 요청 + 위치 갱신 시작 (홈 진입 시 호출)
     func start() {
         switch authorization {

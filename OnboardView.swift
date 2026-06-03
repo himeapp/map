@@ -4,6 +4,7 @@ import SwiftUI
 
 struct OnboardView: View {
     @EnvironmentObject var vm: TransitViewModel
+    @ObservedObject private var location = LocationManager.shared
     @State private var emergencyOpen = false
 
     var body: some View {
@@ -18,6 +19,10 @@ struct OnboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     busBadge(option: option)
+                    if let d = approachDistance(option) {
+                        approachBanner(distance: d, stop: getoffName(option))
+                            .padding(.bottom, 14)
+                    }
                     rideInfo(option: option)
                     if option.vehicle.type == .subway {
                         SubwayRouteMap(
@@ -175,6 +180,46 @@ struct OnboardView: View {
 
     private func hasTransfer(_ option: BoardableOption) -> Bool {
         option.afterSteps.contains { $0.type == .transfer }
+    }
+
+    // MARK: - 도착 임박 넛지 (위치 기반 "준비하세요" 힌트)
+    //
+    // 위치로 목적지 근접을 감지해 "곧 내려요" 힌트만 띄운다. 하차 판단은 여전히 유저 선언.
+    // 환승 구간(마지막 leg 아님)에선 목적지가 멀어 안 뜸 → 오탐 없음.
+    // 위치 권한이 없으면(거리 nil) 조용히 미표시.
+
+    private func approachDistance(_ option: BoardableOption) -> Double? {
+        guard !hasTransfer(option),
+              let coord = vm.toPlace?.coordinate,
+              let d = location.distance(to: coord),
+              d <= 600 else { return nil }
+        return d
+    }
+
+    func approachBanner(distance: Double, stop: String) -> some View {
+        let meters = Int((distance / 10).rounded()) * 10  // 10m 단위 반올림
+        return HStack(spacing: 11) {
+            ZStack {
+                Circle().fill(Color.appGreen).frame(width: 36, height: 36)
+                Image(systemName: "bell.badge.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("곧 \(stop)에서 내려요")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("약 \(meters)m 남음 · 내릴 준비하세요")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Color.appGreen.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appGreen.opacity(0.5), lineWidth: 1.5))
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: meters <= 100)
     }
 
     // MARK: - 긴급 카드 영역
