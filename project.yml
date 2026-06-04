@@ -13,6 +13,8 @@ targets:
   himemap:
     type: application
     platform: iOS
+    dependencies:
+      - target: himemapWidget
     sources:
       - path: .
         includes:
@@ -23,6 +25,8 @@ targets:
       properties:
         CFBundleDisplayName: himemap
         UILaunchScreen: {}
+        # --- Live Activity (다이내믹 아일랜드 / 잠금화면) ---
+        NSSupportsLiveActivities: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:
@@ -47,3 +51,29 @@ targets:
         SWIFT_VERSION: "5.0"
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+
+  # 위젯 익스텐션 — Live Activity(다이내믹 아일랜드 / 잠금화면) 전용
+  himemapWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      # 앱과 공유하는 Live Activity 속성 모델
+      - TransitActivityAttributes.swift
+      - path: Widget
+    info:
+      path: Generated/WidgetInfo.plist
+      properties:
+        CFBundleDisplayName: himemap
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.himemap.app.widget
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: 1
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework

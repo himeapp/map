@@ -41,7 +41,7 @@ final class LocationManager: NSObject, ObservableObject {
     func start() {
         switch authorization {
         case .notDetermined:
-            break // DEBUG-PREVIEW (was: manager.requestWhenInUseAuthorization())
+            manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
             beginUpdates()
         default:

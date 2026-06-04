@@ -108,7 +108,15 @@ final class TransitViewModel: ObservableObject {
         return points
     }
 
-    @Published var appState: AppState = .home
+    @Published var appState: AppState = .home {
+        didSet {
+            guard oldValue != appState else { return }
+            // 대기 화면에서만 도착정보 주기 갱신 (실시간 카운트다운 + "곧 도착" 알림)
+            if appState == .waiting { startWaitingRefresh() } else { stopWaitingRefresh() }
+            // 다이내믹 아일랜드 / 잠금화면 Live Activity 동기화
+            syncLiveActivity()
+        }
+    }
 
     enum SearchTarget { case from, to }
     enum AppState {
@@ -141,6 +149,8 @@ final class TransitViewModel: ObservableObject {
     private let persistence = PersistenceService.shared
     private var searchTask: Task<Void, Never>?
     private var positionPollingTask: Task<Void, Never>?
+    // 대기 화면 도착정보 주기 갱신 (실시간 카운트다운 + 탑승 임박 알림 트리거)
+    private var waitingRefreshTask: Task<Void, Never>?
 
     private var cancellables = Set<AnyCancellable>()
     // 이번 탑승 구간에서 "곧 내려요" 알림을 이미 보냈는지
@@ -152,28 +162,6 @@ final class TransitViewModel: ObservableObject {
         loadSavedData()
         NotificationManager.shared.viewModel = self
         observeLocation()
-        seedDebugOnboard() // DEBUG-PREVIEW
-    }
-
-    // DEBUG-PREVIEW
-    func seedDebugOnboard() {
-        let pass = ["합정", "홍대입구", "신촌", "이대", "아현", "충정로",
-                    "서대문", "광화문", "을지로입구", "동대문역사문화공원역9번출구"]
-        let getOff = RouteStep(type: .getOff, title: "동대문역사문화공원역9번출구 하차",
-                               description: "10정거장 후", detail: nil,
-                               durationMinutes: 23, stopsCount: 10, vehicle: nil, passStops: pass)
-        let arrive = RouteStep(type: .arrive, title: "3M썬팅 갈월점 도착",
-                               description: "목적지 도착", detail: nil,
-                               durationMinutes: nil, stopsCount: nil, vehicle: nil)
-        let bus = Vehicle(type: .bus, number: "301", headsign: "", via: "", busType: 1, subwayLineCode: nil)
-        selectedOption = BoardableOption(
-            vehicle: bus, arrivalMinutes: nil, nextArrivalMinutes: nil, totalMinutes: 40,
-            mapObj: nil,
-            originStop: TransitStop(name: "합정", coordinate: nil, odsayStationId: nil),
-            walkToStopMinutes: nil, afterSteps: [getOff, arrive])
-        toPlace = Place(name: "3M썬팅 갈월점", address: "",
-                        coordinate: Coordinate(lat: 37.55, lng: 126.97))
-        appState = .onboard
     }
 
     // MARK: - 위치 기반 도착 임박 알림
@@ -454,6 +442,7 @@ final class TransitViewModel: ObservableObject {
         boardableOptions.sort { ($0.arrivalMinutes ?? Int.max) < ($1.arrivalMinutes ?? Int.max) }
 
         notifyIfBoardingSoon()
+        syncLiveActivity()   // 대기 카운트다운을 다이내믹 아일랜드에도 반영
     }
 
     /// 대기 중 고른(또는 1순위) 경로가 1분 내 도착이면 "탔어요" 알림
@@ -463,6 +452,91 @@ final class TransitViewModel: ObservableObject {
             ?? boardableOptions.first
         guard let opt = candidate, let m = opt.arrivalMinutes, m <= 1 else { return }
         NotificationManager.shared.fireBoardArrival(option: opt)
+    }
+
+    // MARK: - 대기 화면 주기 갱신
+    //
+    // .waiting 상태에 들어오면 20초마다 도착정보를 다시 받아 카운트다운을 살린다.
+    // 갱신 끝에 notifyIfBoardingSoon()/Live Activity 동기화가 같이 돌아서
+    // "곧 도착" 알림과 다이내믹 아일랜드 분 표시가 자동 갱신된다.
+
+    private func startWaitingRefresh() {
+        waitingRefreshTask?.cancel()
+        waitingRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000_000) // 20s
+                guard !Task.isCancelled, let self else { return }
+                guard self.appState == .waiting else { return }
+                await self.refreshRealtimeArrivals()
+            }
+        }
+    }
+
+    private func stopWaitingRefresh() {
+        waitingRefreshTask?.cancel()
+        waitingRefreshTask = nil
+    }
+
+    // MARK: - Live Activity (다이내믹 아일랜드 / 잠금화면)
+    //
+    // 대기/탑승/환승 상태를 잠금화면·다이내믹 아일랜드에 띄운다. 탑승/하차 판단은
+    // 여전히 유저 선언 — Live Activity 도 안내일 뿐, 자동으로 상태를 바꾸지 않는다.
+
+    private func syncLiveActivity() {
+        if let state = liveActivityState() {
+            LiveActivityManager.shared.start(destination: toPlace?.name ?? "목적지", state: state)
+        } else {
+            LiveActivityManager.shared.end()
+        }
+    }
+
+    /// 현재 VM 상태 → Live Activity 콘텐츠. 표시할 게 없으면 nil(=종료).
+    private func liveActivityState() -> TransitActivityAttributes.ContentState? {
+        switch appState {
+        case .waiting:
+            let opt = chosenOptionID.flatMap { id in boardableOptions.first { $0.id == id } }
+                ?? boardableOptions.first
+            guard let opt else { return nil }
+            let line = lineLabel(opt.vehicle)
+            let m = opt.arrivalMinutes
+            return .init(
+                phase: .waiting,
+                lineLabel: line,
+                lineColorHex: opt.vehicle.lineColor,
+                headline: m != nil ? "\(line) \(m!)분 후 도착" : "\(line) 대기 중",
+                detail: (opt.originStop?.name).map { "\($0)에서 탑승" } ?? "곧 도착",
+                minutes: m
+            )
+        case .onboard:
+            guard let opt = selectedOption else { return nil }
+            let line = lineLabel(opt.vehicle)
+            let stop = opt.getOffStopName ?? toPlace?.name ?? "도착지"
+            return .init(
+                phase: .onboard,
+                lineLabel: line,
+                lineColorHex: opt.vehicle.lineColor,
+                headline: opt.hasTransferLeg ? "\(stop)에서 환승" : "\(stop)에서 하차",
+                detail: opt.vehicle.headsign.isEmpty ? line : opt.vehicle.headsign,
+                minutes: nil
+            )
+        case .transferWalking:
+            guard let opt = selectedOption else { return nil }
+            let to = opt.transferLineLabel ?? "다음 수단"
+            return .init(
+                phase: .transfer,
+                lineLabel: to,
+                lineColorHex: opt.transferStep?.vehicle?.lineColor ?? "#8a8a8e",
+                headline: "\(to)\(josaRo(to)) 환승",
+                detail: "다음 정류소로 이동",
+                minutes: nil
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func lineLabel(_ v: Vehicle) -> String {
+        v.type == .bus ? "\(v.number)번" : v.number
     }
 
     // MARK: - 지하철 실시간 갱신 (수도권 한정)
