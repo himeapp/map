@@ -41,12 +41,20 @@ final class LocationManager: NSObject, ObservableObject {
     func start() {
         switch authorization {
         case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            break // DEBUG-PREVIEW (was: manager.requestWhenInUseAuthorization())
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.startUpdatingLocation()
+            beginUpdates()
         default:
             break
         }
+    }
+
+    /// 위치 갱신 시작. 백그라운드에서도 도착 알림이 뜨도록 백그라운드 갱신 허용.
+    /// (Info.plist UIBackgroundModes: location 필요 — 없으면 크래시하므로 plist와 함께 유지)
+    private func beginUpdates() {
+        manager.allowsBackgroundLocationUpdates = true
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.startUpdatingLocation()
     }
 }
 
@@ -56,7 +64,7 @@ extension LocationManager: CLLocationManagerDelegate {
         Task { @MainActor in
             self.authorization = status
             if status == .authorizedWhenInUse || status == .authorizedAlways {
-                manager.startUpdatingLocation()
+                self.beginUpdates()
             }
         }
     }

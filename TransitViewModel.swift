@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CoreLocation
 
 @MainActor
 final class TransitViewModel: ObservableObject {
@@ -141,10 +142,67 @@ final class TransitViewModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var positionPollingTask: Task<Void, Never>?
 
+    private var cancellables = Set<AnyCancellable>()
+    // 이번 탑승 구간에서 "곧 내려요" 알림을 이미 보냈는지
+    private var notifiedApproach = false
+
     // MARK: - Init
 
     init() {
         loadSavedData()
+        NotificationManager.shared.viewModel = self
+        observeLocation()
+        seedDebugOnboard() // DEBUG-PREVIEW
+    }
+
+    // DEBUG-PREVIEW
+    func seedDebugOnboard() {
+        let pass = ["합정", "홍대입구", "신촌", "이대", "아현", "충정로",
+                    "서대문", "광화문", "을지로입구", "동대문역사문화공원역9번출구"]
+        let getOff = RouteStep(type: .getOff, title: "동대문역사문화공원역9번출구 하차",
+                               description: "10정거장 후", detail: nil,
+                               durationMinutes: 23, stopsCount: 10, vehicle: nil, passStops: pass)
+        let arrive = RouteStep(type: .arrive, title: "3M썬팅 갈월점 도착",
+                               description: "목적지 도착", detail: nil,
+                               durationMinutes: nil, stopsCount: nil, vehicle: nil)
+        let bus = Vehicle(type: .bus, number: "301", headsign: "", via: "", busType: 1, subwayLineCode: nil)
+        selectedOption = BoardableOption(
+            vehicle: bus, arrivalMinutes: nil, nextArrivalMinutes: nil, totalMinutes: 40,
+            mapObj: nil,
+            originStop: TransitStop(name: "합정", coordinate: nil, odsayStationId: nil),
+            walkToStopMinutes: nil, afterSteps: [getOff, arrive])
+        toPlace = Place(name: "3M썬팅 갈월점", address: "",
+                        coordinate: Coordinate(lat: 37.55, lng: 126.97))
+        appState = .onboard
+    }
+
+    // MARK: - 위치 기반 도착 임박 알림
+    //
+    // 위치 업데이트마다 "이번 구간 하차 정류소" 거리만 본다. 250m 안으로 처음
+    // 들어오면 알림 1회. 백그라운드에서도 위치가 들어오면 동작. 탑승/하차 판단은
+    // 여전히 유저 선언 — 알림은 "곧 내려요" 안내 + 액션 버튼 제공일 뿐.
+
+    private func observeLocation() {
+        LocationManager.shared.$current
+            .compactMap { $0 }
+            .sink { [weak self] coord in self?.handleLocation(coord) }
+            .store(in: &cancellables)
+    }
+
+    private func handleLocation(_ coord: CLLocationCoordinate2D) {
+        guard appState == .onboard,
+              let option = selectedOption,
+              let target = option.getOffCoordinate else { return }
+        let here = Coordinate(lat: coord.latitude, lng: coord.longitude)
+        let d = haversineDistance(from: here, to: target)
+        if d <= 250, !notifiedApproach {
+            notifiedApproach = true
+            NotificationManager.shared.fireGetOffApproach(
+                stop: option.getOffStopName ?? toPlace?.name ?? "도착지",
+                isTransfer: option.hasTransferLeg,
+                transferLine: option.transferLineLabel
+            )
+        }
     }
 
     // MARK: - 저장 데이터 로드
@@ -394,6 +452,17 @@ final class TransitViewModel: ObservableObject {
 
         // 도착 임박 순 재정렬 — 실시간 없는 건 뒤로
         boardableOptions.sort { ($0.arrivalMinutes ?? Int.max) < ($1.arrivalMinutes ?? Int.max) }
+
+        notifyIfBoardingSoon()
+    }
+
+    /// 대기 중 고른(또는 1순위) 경로가 1분 내 도착이면 "탔어요" 알림
+    private func notifyIfBoardingSoon() {
+        guard appState == .waiting else { return }
+        let candidate = chosenOptionID.flatMap { id in boardableOptions.first { $0.id == id } }
+            ?? boardableOptions.first
+        guard let opt = candidate, let m = opt.arrivalMinutes, m <= 1 else { return }
+        NotificationManager.shared.fireBoardArrival(option: opt)
     }
 
     // MARK: - 지하철 실시간 갱신 (수도권 한정)
@@ -449,6 +518,8 @@ final class TransitViewModel: ObservableObject {
         selectedOption = option
         boardedAt = Date()
         arrivedAt = nil
+        notifiedApproach = false               // 이 구간 도착 알림 재무장
+        NotificationManager.shared.resetFired()
         appState = .onboard
         // 버스면 실시간 위치 추적 자동 시작
         if option.vehicle.type == .bus,
@@ -456,6 +527,12 @@ final class TransitViewModel: ObservableObject {
            let cityCode = option.cityCode {
             startBusTracking(cityCode: cityCode, routeId: routeId)
         }
+    }
+
+    /// 알림 "탔어요" 액션에서 옵션 id로 탑승
+    func boardByID(_ id: UUID) {
+        guard let opt = boardableOptions.first(where: { $0.id == id }) else { return }
+        boardVehicle(opt)
     }
 
     func exitOnboard() {
@@ -658,6 +735,8 @@ final class TransitViewModel: ObservableObject {
         boardedAt = nil
         arrivedAt = nil
         walkingGroup = nil
+        notifiedApproach = false
+        NotificationManager.shared.resetFired()
         intercityOptions = []
         intercityOrigin = nil
         intercityDest = nil

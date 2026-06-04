@@ -2,7 +2,7 @@ name: himemap
 options:
   bundleIdPrefix: com.himemap
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "16.1"
   createIntermediateGroups: true
 
 configFiles:
@@ -35,6 +35,9 @@ targets:
         # --- 위치 권한 ---
         NSLocationWhenInUseUsageDescription: 현재 위치를 출발지로 사용하기 위해 필요합니다
         NSLocationAlwaysAndWhenInUseUsageDescription: 경로 안내 중 위치 추적에 사용됩니다
+        # --- 백그라운드 위치 갱신 (잠금화면/백그라운드에서도 도착 알림) ---
+        UIBackgroundModes:
+          - location
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

@@ -81,6 +81,34 @@ struct BoardableOption: Identifiable {
     }
 }
 
+// 탑승 중 위치 기반 알림/넛지에서 쓰는 파생값들 (View·VM 공용)
+extension BoardableOption {
+    /// 이번 구간 하차 스텝
+    var getOffStep: RouteStep? { afterSteps.first { $0.type == .getOff } }
+    /// 다음 환승 스텝
+    var transferStep: RouteStep? { afterSteps.first { $0.type == .transfer } }
+    /// 환승 구간이 남아 있는지
+    var hasTransferLeg: Bool { afterSteps.contains { $0.type == .transfer } }
+
+    /// 이번 구간 하차 정류소 좌표 (경유역 좌표의 마지막 = 하차역). 없으면 nil.
+    var getOffCoordinate: Coordinate? { getOffStep?.passStopCoords?.last }
+
+    /// 이번 구간 하차 정류소 이름 ("○○ 하차" → "○○"). 없으면 nil.
+    var getOffStopName: String? {
+        guard let g = getOffStep else { return nil }
+        var t = g.title.replacingOccurrences(of: "에서 하차", with: "")
+        if t.hasSuffix("하차") { t = String(t.dropLast(2)) }
+        t = t.trimmingCharacters(in: .whitespaces)
+        return t.isEmpty ? nil : t
+    }
+
+    /// 환승해서 다음에 탈 수단 표시명 ("2호선"/"271번"). 환승 없으면 nil.
+    var transferLineLabel: String? {
+        guard let v = transferStep?.vehicle else { return nil }
+        return v.type == .bus ? "\(v.number)번" : v.number
+    }
+}
+
 // 정류장 / 역 식별자 묶음
 struct TransitStop {
     let name: String

@@ -92,6 +92,10 @@ struct ContentView: View {
             }
         }
         .environmentObject(vm)
+        .onAppear {
+            NotificationManager.shared.configure()
+            NotificationManager.shared.requestAuthorization()
+        }
     }
 }
 

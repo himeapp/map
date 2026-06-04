@@ -269,7 +269,8 @@ struct OnboardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
-        .padding(.bottom, 14)
+        // 시트가 safe area를 무시하고 바닥까지 내려오므로, 홈 인디케이터만큼 여백을 직접 준다.
+        .padding(.bottom, max(14, safeBottomInset))
         .background(Color.appBg)
         .overlay(Divider(), alignment: .top)
     }
@@ -351,6 +352,13 @@ struct OnboardView: View {
         }
         return vm.toPlace?.name ?? "도착지"
     }
+
+    // 기기 하단 세이프 인셋(홈 인디케이터 높이). 시트가 safe area를 무시하므로 직접 읽는다.
+    private var safeBottomInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?.safeAreaInsets.bottom ?? 0
+    }
 }
 
 // MARK: - 버스 탑승 구간 타임라인 (HTML .tlv 스타일)
@@ -398,7 +406,9 @@ struct BusRideTimeline: View {
 
     @ViewBuilder
     private func liveTimeline(current cur: Int) -> some View {
-        let remaining = max(0, lastIdx - cur)
+        // 남은 정거장 수는 헤드라인("N 정거장 남음", stopsCount)을 기준으로 센다.
+        // 경유역 이름 배열 길이(lastIdx)와 stopsCount가 1 어긋나도 숫자가 일치하도록.
+        let remaining = max(0, remainingFallback - cur)
         let upMids = (cur + 1 <= lastIdx - 1) ? Array(stops[(cur + 1)..<lastIdx]) : []
         VStack(spacing: 0) {
             if cur == 0 {
@@ -427,7 +437,8 @@ struct BusRideTimeline: View {
     @ViewBuilder
     private func staticTimeline() -> some View {
         let mids = stops.count > 2 ? Array(stops[1..<lastIdx]) : []
-        let remaining = stops.isEmpty ? remainingFallback : lastIdx
+        // 헤드라인(stopsCount)과 항상 같은 숫자를 쓴다 — 경유역 이름은 mids로 보조 표시.
+        let remaining = remainingFallback
         VStack(spacing: 0) {
             node(kind: .passed, isLast: false) {
                 Text(boardStop).font(.system(size: 15, weight: .semibold)).foregroundColor(.secondary)
