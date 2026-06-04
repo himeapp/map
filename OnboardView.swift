@@ -20,7 +20,9 @@ struct OnboardView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     busBadge(option: option)
                     if let d = approachDistance(option) {
-                        approachBanner(distance: d, stop: getoffName(option), isTransfer: hasTransfer(option))
+                        approachBanner(distance: d, stop: getoffName(option),
+                                       isTransfer: hasTransfer(option),
+                                       transferTo: transferLineName(option))
                             .padding(.bottom, 14)
                     }
                     rideInfo(option: option)
@@ -215,9 +217,23 @@ struct OnboardView: View {
         return hasTransfer(option) ? nil : vm.toPlace?.coordinate
     }
 
-    func approachBanner(distance: Double, stop: String, isTransfer: Bool) -> some View {
+    /// 환승 스텝에서 다음에 탈 수단 표시명 ("2호선" / "271번"). 없으면 nil.
+    private func transferLineName(_ option: BoardableOption) -> String? {
+        guard let t = option.afterSteps.first(where: { $0.type == .transfer }),
+              let v = t.vehicle else { return nil }
+        return v.type == .bus ? "\(v.number)번" : v.number
+    }
+
+    func approachBanner(distance: Double, stop: String, isTransfer: Bool, transferTo: String?) -> some View {
         let meters = Int((distance / 10).rounded()) * 10  // 10m 단위 반올림
-        let title = isTransfer ? "곧 \(stop)에서 내려서 환승해요" : "곧 \(stop)에서 내려요"
+        let title: String
+        if let to = transferTo {
+            title = "곧 \(stop)에서 \(to)\(josaRo(to)) 환승해요"
+        } else if isTransfer {
+            title = "곧 \(stop)에서 내려서 환승해요"
+        } else {
+            title = "곧 \(stop)에서 내려요"
+        }
         return HStack(spacing: 11) {
             ZStack {
                 Circle().fill(Color.appGreen).frame(width: 36, height: 36)

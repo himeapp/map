@@ -121,3 +121,26 @@ struct ETABadge: View {
         }
     }
 }
+
+// MARK: - 한글 텍스트 헬퍼 (조사·방면 라벨)
+
+/// 받침에 맞는 '로/으로' 조사. 받침 없음 또는 ㄹ받침 → "로", 그 외 → "으로".
+/// 한글이 아닌 끝글자는 "로"로 둔다.
+func josaRo(_ word: String) -> String {
+    guard let last = word.unicodeScalars.last else { return "로" }
+    let v = last.value
+    guard v >= 0xAC00 && v <= 0xD7A3 else { return "로" }
+    let jong = (v - 0xAC00) % 28
+    return (jong == 0 || jong == 8) ? "로" : "으로"
+}
+
+/// ODsay way(방면) 원문을 "○○행" 형태로 정규화. 빈 값이면 nil.
+/// "성수", "성수방면", "성수방향", "성수행" 모두 "성수행"으로.
+func directionLabel(_ raw: String?) -> String? {
+    var s = (raw ?? "").trimmingCharacters(in: .whitespaces)
+    for suffix in ["방면", "방향", "행"] where s.hasSuffix(suffix) {
+        s = String(s.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces)
+    }
+    guard !s.isEmpty else { return nil }
+    return s + "행"
+}

@@ -84,15 +84,35 @@ struct TransferView: View {
     func walkHead(option: BoardableOption?) -> some View {
         let next = transferStopName(option)
         let mins = transferWalkMinutes(option)
-        return VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 6) {
             Text("\(next)(으)로")
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(.primary)
+            if let to = transferToText(option) {
+                Text(to)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.appOrange)
+            }
             Text(mins.map { "약 \($0)분 · 도보 이동" } ?? "도보 이동")
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
         }
         .padding(.bottom, 16)
+    }
+
+    // MARK: - 다음에 탈 수단 + 방면 ("2호선 성수행으로 환승해요")
+    //
+    // 같은 노선도 방향이 둘이라, 방면(way)을 "○○행"으로 보여줘 헷갈림을 줄인다.
+
+    private func transferToText(_ option: BoardableOption?) -> String? {
+        guard let v = option?.afterSteps.first(where: { $0.type == .transfer })?.vehicle else {
+            return nil
+        }
+        let name = v.type == .bus ? "\(v.number)번" : v.number
+        if let dir = directionLabel(v.headsign) {
+            return "\(name) \(dir)\(josaRo(dir)) 환승해요"
+        }
+        return "\(name)\(josaRo(name)) 환승해요"
     }
 
     // MARK: - 세로 타임라인 (하차 → 걷는 중 → 도착 정류소)
