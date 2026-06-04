@@ -9,7 +9,11 @@ struct HomeView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             // MARK: - 지도 (항상 배경)
-            MapView(positions: vm.livePositions, controller: mapController)
+            MapView(positions: vm.livePositions,
+                    routeLines: vm.routeLines,
+                    routePoints: vm.mapRoutePoints,
+                    routeVersion: vm.routeVersion,
+                    controller: mapController)
                 .ignoresSafeArea()
 
             // MARK: - 우측 지도 컨트롤 (내 위치) — 홈에서만
@@ -40,6 +44,8 @@ struct HomeView: View {
             }
         }
         .onAppear { location.start() }
+        // 여정 상태/고른 경로가 바뀔 때마다 추천 경로 폴리라인을 다시 그림
+        .task(id: geometryKey) { await loadRouteGeometry() }
         // MARK: - 검색은 네이티브 모달 시트로
         .sheet(isPresented: Binding(
             get: { vm.appState == .searching },
@@ -58,6 +64,58 @@ struct HomeView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+
+    // MARK: - 추천 경로 폴리라인 로딩
+
+    /// 여정 상태 + 그릴 경로가 바뀔 때마다 변하는 키. .task(id:) 트리거용.
+    private var geometryKey: String {
+        "\(vm.appState)|\(currentRouteOption()?.id.uuidString ?? "none")"
+    }
+
+    /// 지도에 그릴 경로 1개: 고른 경로(chosenOptionID) 우선, 없으면 가장 빠른(총소요 최소) 경로.
+    private func currentRouteOption() -> BoardableOption? {
+        if let id = vm.chosenOptionID,
+           let chosen = vm.boardableOptions.first(where: { $0.id == id }) {
+            return chosen
+        }
+        return vm.boardableOptions
+            .filter { !vm.excludedKeys.contains($0.exclusionKey) }
+            .min(by: { $0.totalMinutes < $1.totalMinutes })
+    }
+
+    /// 여정 중이면 추천 경로 폴리라인을 받아와 지도에 그리고, 아니면 지움.
+    @MainActor
+    private func loadRouteGeometry() async {
+        let isJourney: Bool
+        switch vm.appState {
+        case .routes, .waiting, .walkingToStop, .onboard, .transferWalking, .rerouting:
+            isJourney = true
+        default:
+            isJourney = false
+        }
+        guard isJourney else {
+            vm.routeLines = []
+            return
+        }
+
+        // 마커(출발·도착·정류장)만으로도 먼저 지도 영역을 맞추도록 트리거
+        vm.routeVersion &+= 1
+
+        guard let option = currentRouteOption(), let mapObj = option.mapObj else {
+            vm.routeLines = []
+            return
+        }
+
+        do {
+            let lines = try await ODsayService.shared.fetchRouteGraphic(
+                mapObj: mapObj, colorHex: option.vehicle.lineColor
+            )
+            vm.routeLines = lines
+            vm.routeVersion &+= 1   // 선까지 포함해 영역 재맞춤
+        } catch {
+            vm.routeLines = []      // 실패해도 마커 영역 맞춤은 유지
         }
     }
 }
@@ -109,6 +167,9 @@ final class MapController: ObservableObject {
 
 struct MapView: UIViewRepresentable {
     var positions: [BusPosition] = []
+    var routeLines: [RouteLine] = []
+    var routePoints: [RoutePoint] = []
+    var routeVersion: Int = 0
     var controller: MapController? = nil
 
     func makeUIView(context: Context) -> MKMapView {
@@ -128,28 +189,141 @@ struct MapView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        // 기존 버스 핀 정리하고 새로 그리기
+        let coord = context.coordinator
+
+        // 1) 실시간 버스 핀
         let oldBus = uiView.annotations.compactMap { $0 as? BusAnnotation }
         uiView.removeAnnotations(oldBus)
+        uiView.addAnnotations(positions.map { BusAnnotation(position: $0) })
 
-        let newBus = positions.map { BusAnnotation(position: $0) }
-        uiView.addAnnotations(newBus)
+        // 2) 경로 지점 핀 (출발 / 도착 / 탑승 정류장)
+        let oldPts = uiView.annotations.compactMap { $0 as? RoutePointAnnotation }
+        uiView.removeAnnotations(oldPts)
+        uiView.addAnnotations(routePoints.map { RoutePointAnnotation($0) })
+
+        // 3) 경로 선
+        let oldLines = uiView.overlays.compactMap { $0 as? MKPolyline }
+        uiView.removeOverlays(oldLines)
+        coord.lineStyles.removeAll()
+        for line in routeLines {
+            let cs = line.coordinates.map {
+                CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lng)
+            }
+            guard cs.count >= 2 else { continue }
+            let poly = MKPolyline(coordinates: cs, count: cs.count)
+            coord.lineStyles[ObjectIdentifier(poly)] = (UIColor(hex: line.colorHex), line.dashed)
+            uiView.addOverlay(poly)
+        }
+
+        // 4) routeVersion 이 바뀌면 경로(선+지점)가 다 보이게 영역 맞춤
+        if routeVersion != coord.lastFittedVersion {
+            coord.lastFittedVersion = routeVersion
+            fitRoute(in: uiView)
+        }
+    }
+
+    /// 경로 선과 지점을 모두 포함하도록 지도 영역을 맞춘다. 하단은 바텀시트가 가리므로 여백을 크게.
+    private func fitRoute(in map: MKMapView) {
+        let coords = routeLines.flatMap { $0.coordinates } + routePoints.map { $0.coordinate }
+        guard !coords.isEmpty else { return }
+
+        var rect = MKMapRect.null
+        for c in coords {
+            let p = MKMapPoint(CLLocationCoordinate2D(latitude: c.lat, longitude: c.lng))
+            rect = rect.union(MKMapRect(origin: p, size: MKMapSize(width: 1, height: 1)))
+        }
+        guard !rect.isNull else { return }
+
+        let bottomInset = max(140, map.bounds.height * 0.5)   // 바텀시트 가림 보정
+        let insets = UIEdgeInsets(top: 90, left: 50, bottom: bottomInset, right: 50)
+        map.setVisibleMapRect(rect, edgePadding: insets, animated: true)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
+        // 폴리라인별 (색, 점선여부). ObjectIdentifier 로 매핑.
+        var lineStyles: [ObjectIdentifier: (UIColor, Bool)] = [:]
+        var lastFittedVersion: Int = -1
+
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let bus = annotation as? BusAnnotation else { return nil }
-            let id = "bus"
-            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView
-                ?? MKMarkerAnnotationView(annotation: bus, reuseIdentifier: id)
-            view.annotation = bus
-            view.markerTintColor = .systemBlue
-            view.glyphImage = UIImage(systemName: "bus.fill")
-            view.canShowCallout = true
-            return view
+            if let bus = annotation as? BusAnnotation {
+                let id = "bus"
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView
+                    ?? MKMarkerAnnotationView(annotation: bus, reuseIdentifier: id)
+                view.annotation = bus
+                view.markerTintColor = .systemBlue
+                view.glyphImage = UIImage(systemName: "bus.fill")
+                view.canShowCallout = true
+                return view
+            }
+
+            if let pt = annotation as? RoutePointAnnotation {
+                let id = "routePoint"
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView
+                    ?? MKMarkerAnnotationView(annotation: pt, reuseIdentifier: id)
+                view.annotation = pt
+                view.canShowCallout = true
+                switch pt.point.kind {
+                case .origin:
+                    view.markerTintColor = UIColor(hex: "#8a8a8e")
+                    view.glyphImage = UIImage(systemName: "circle.circle.fill")
+                    view.displayPriority = .defaultHigh
+                case .destination:
+                    view.markerTintColor = UIColor(hex: "#bf5af2")
+                    view.glyphImage = UIImage(systemName: "mappin")
+                    view.displayPriority = .required
+                case .stop:
+                    view.markerTintColor = UIColor(hex: "#0a84ff")
+                    view.glyphImage = UIImage(systemName: "figure.walk")
+                    view.displayPriority = .required
+                }
+                return view
+            }
+
+            return nil   // MKUserLocation 등은 기본 표시(파란 점)
         }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let poly = overlay as? MKPolyline else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            let r = MKPolylineRenderer(polyline: poly)
+            let style = lineStyles[ObjectIdentifier(poly)]
+            r.strokeColor = (style?.0 ?? .systemBlue).withAlphaComponent(0.9)
+            r.lineWidth = 5
+            r.lineCap = .round
+            r.lineJoin = .round
+            if style?.1 == true { r.lineDashPattern = [2, 8] }
+            return r
+        }
+    }
+}
+
+// MARK: - 경로 지점 어노테이션 (출발/도착/정류장)
+
+final class RoutePointAnnotation: NSObject, MKAnnotation {
+    let point: RoutePoint
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: point.coordinate.lat, longitude: point.coordinate.lng)
+    }
+    var title: String? { point.title }
+    init(_ point: RoutePoint) { self.point = point }
+}
+
+// MARK: - UIColor hex (지도 오버레이용 — Color(hex:) 의 UIKit 짝)
+
+extension UIColor {
+    convenience init(hex: String) {
+        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        var int: UInt64 = 0
+        Scanner(string: h).scanHexInt64(&int)
+        let r, g, b: UInt64
+        switch h.count {
+        case 6: (r, g, b) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default: (r, g, b) = (10, 132, 255)   // 폴백: appBlue
+        }
+        self.init(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: 1)
     }
 }
 

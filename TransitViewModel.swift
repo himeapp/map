@@ -19,6 +19,8 @@ final class TransitViewModel: ObservableObject {
     @Published var isRefreshingRealtime: Bool = false
 
     @Published var selectedOption: BoardableOption?  // 탭한 버스/지하철
+    // ① 전체 경로에서 고른 경로의 id. 대기 화면(②)에서 "고른 길" 표시·정렬 기준.
+    @Published var chosenOptionID: UUID?
 
     // "뺄 것만 빼기" — 사용자가 숨긴 경로의 exclusionKey 모음
     @Published var excludedKeys: Set<String> = []
@@ -35,6 +37,10 @@ final class TransitViewModel: ObservableObject {
 
     // 탑승 중인 버스 실시간 위치 (지도 위 핀)
     @Published var livePositions: [BusPosition] = []
+
+    // 지도 위 경로 선 (추천 경로 폴리라인) + 영역 재맞춤 트리거
+    @Published var routeLines: [RouteLine] = []
+    @Published var routeVersion: Int = 0
 
     @Published var savedPlaces: [Place] = []
     @Published var recentSearches: [Place] = []
@@ -80,12 +86,34 @@ final class TransitViewModel: ObservableObject {
         return groups
     }
 
+    // 지도에 찍을 경로 지점들 (출발지·도착지·추천 탑승 정류장). 홈/검색에선 비움.
+    var mapRoutePoints: [RoutePoint] {
+        switch appState {
+        case .home, .searching, .intercity:
+            return []
+        default:
+            break
+        }
+        var points: [RoutePoint] = []
+        if let f = fromPlace {
+            points.append(RoutePoint(coordinate: f.coordinate, kind: .origin, title: f.name))
+        }
+        if let t = toPlace {
+            points.append(RoutePoint(coordinate: t.coordinate, kind: .destination, title: t.name))
+        }
+        if let stop = departureGroups.first?.stop, let c = stop.coordinate {
+            points.append(RoutePoint(coordinate: c, kind: .stop, title: stop.name))
+        }
+        return points
+    }
+
     @Published var appState: AppState = .home
 
     enum SearchTarget { case from, to }
     enum AppState {
         case home
         case searching
+        case routes       // ① 전체 경로 — 완성 경로 다 보여주고 고름 (계획 단계, 실시간 없음)
         case walkingToStop // 정류소까지 도보 안내 (① → ② 사이)
         case waiting      // 버스 대기 화면 (시내)
         case onboard      // 탑승 후 이후 경로
@@ -277,7 +305,8 @@ final class TransitViewModel: ObservableObject {
                 return
             }
             boardableOptions = options
-            appState = .waiting
+            chosenOptionID = nil           // 새 탐색 → 아직 아무것도 안 고른 상태
+            appState = .routes             // ① 전체 경로부터 보여주고 고르게
 
             // 실시간 도착정보를 비동기로 채워넣기 (지하철은 스킵)
             Task { await refreshRealtimeArrivals() }
@@ -285,6 +314,12 @@ final class TransitViewModel: ObservableObject {
             // ODsay 실패 시도 인터시티 fallback
             enterIntercity()
         }
+    }
+
+    // ① 전체 경로에서 한 경로를 고름 → ② 그 지점 집중(대기) 화면으로.
+    func chooseRoute(_ option: BoardableOption) {
+        chosenOptionID = option.id
+        appState = .waiting
     }
 
     // MARK: - 좌표 거리 (Haversine, m)
@@ -466,7 +501,7 @@ final class TransitViewModel: ObservableObject {
     func confirmReroute() {
         stopBusTracking()
         selectedOption = nil
-        Task { await fetchRoutes() }   // 성공 시 .waiting 으로 전환됨
+        Task { await fetchRoutes() }   // 성공 시 ① 전체 경로(.routes)부터 다시 고름
     }
 
     func cancelReroute() {

@@ -64,6 +64,8 @@ struct BoardableOption: Identifiable {
     var arrivalMinutes: Int?
     var nextArrivalMinutes: Int?
     let totalMinutes: Int
+    // ODsay path.info.mapObj — 지도 폴리라인(loadLane) 조회용 토큰. 없으면 nil.
+    let mapObj: String?
     // 첫 탑승 정류장. 국토부 실시간 도착 조회용 식별자 매핑에 사용.
     let originStop: TransitStop?
     // 출발지에서 첫 탑승 정류장까지 도보 분 (ODsay 첫 도보 구간). 없으면 nil.
@@ -165,6 +167,10 @@ struct RouteStep: Identifiable {
     let durationMinutes: Int?
     let stopsCount: Int?
     let vehicle: Vehicle?
+    // 탑승~하차 사이 경유역 이름들(현재역 ~ 하차역 포함). ODsay passStopList에서 채움. 없으면 nil.
+    var passStops: [String]? = nil
+    // passStops와 같은 순서·길이의 정류장 좌표. GPS로 "지금 어디쯤" 계산용. 좌표가 다 없으면 nil.
+    var passStopCoords: [Coordinate]? = nil
 }
 
 enum StepType {
@@ -227,6 +233,27 @@ struct IntercityCity: Identifiable, Hashable {
     var id: String { code }
     let code: String     // TAGO cityCode (예: "NAEK010" — 서울)
     let name: String     // "서울"
+}
+
+// MARK: - 지도용 경로 지오메트리
+//
+// ODsay loadLane(mapObj) 응답을 지도 폴리라인으로 변환한 것.
+// 한 RouteLine = 한 구간(lane.section)의 좌표열.
+
+struct RouteLine: Identifiable {
+    let id = UUID()
+    let coordinates: [Coordinate]
+    let colorHex: String
+    var dashed: Bool = false   // 도보 구간 등 점선 표현용
+}
+
+// 지도 위 경로 지점 핀 (출발/도착/탑승 정류장)
+struct RoutePoint: Identifiable {
+    enum Kind { case origin, destination, stop }
+    let id = UUID()
+    let coordinate: Coordinate
+    let kind: Kind
+    let title: String
 }
 
 // MARK: - 실시간 버스 위치 (지도 위 핀)

@@ -20,7 +20,7 @@ struct OnboardView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     busBadge(option: option)
                     if let d = approachDistance(option) {
-                        approachBanner(distance: d, stop: getoffName(option))
+                        approachBanner(distance: d, stop: getoffName(option), isTransfer: hasTransfer(option))
                             .padding(.bottom, 14)
                     }
                     rideInfo(option: option)
@@ -29,7 +29,10 @@ struct OnboardView: View {
                             lineColor: Color(hex: option.vehicle.lineColor),
                             originName: option.originStop?.name ?? "현재역",
                             exitName: getoffName(option),
-                            upcomingStops: option.afterSteps.first?.stopsCount ?? 3
+                            passStops: option.afterSteps.first(where: { $0.type == .getOff })?.passStops,
+                            upcomingStops: option.afterSteps.first?.stopsCount ?? 3,
+                            boardedAt: vm.boardedAt,
+                            totalRideMinutes: option.afterSteps.first?.durationMinutes
                         )
                         .padding(.bottom, 8)
                     } else {
@@ -113,15 +116,22 @@ struct OnboardView: View {
         .padding(.bottom, 16)
     }
 
-    // MARK: - 세로 타임라인 (afterSteps)
+    // MARK: - 버스 탑승 구간 타임라인 (지금 탄 버스 한 구간만)
+    //
+    // 환승·도보·도착 등 "다음 단계"는 이 화면에 섞지 않는다 — 하차 후
+    // 환승/도착 화면에서 다룬다. 여기선 탑승역 → (접히는) 경유 정류장 → 하차만.
 
     func timeline(option: BoardableOption) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(option.afterSteps.enumerated()), id: \.element.id) { i, step in
-                StepRow(step: step, isLast: i == option.afterSteps.count - 1)
-            }
-        }
-        .padding(.bottom, 8)
+        let getOff = option.afterSteps.first { $0.type == .getOff }
+        let pass = getOff?.passStops ?? []
+        let board = option.originStop?.name ?? pass.first ?? "탑승 정류장"
+        let remaining = getOff?.stopsCount ?? max(0, pass.count - 1)
+        return BusRideTimeline(
+            boardStop: board,
+            stops: pass,
+            coords: getOff?.passStopCoords ?? [],
+            remainingFallback: remaining
+        )
     }
 
     // MARK: - 하차 박스
@@ -184,20 +194,30 @@ struct OnboardView: View {
 
     // MARK: - 도착 임박 넛지 (위치 기반 "준비하세요" 힌트)
     //
-    // 위치로 목적지 근접을 감지해 "곧 내려요" 힌트만 띄운다. 하차 판단은 여전히 유저 선언.
-    // 환승 구간(마지막 leg 아님)에선 목적지가 멀어 안 뜸 → 오탐 없음.
-    // 위치 권한이 없으면(거리 nil) 조용히 미표시.
+    // 위치로 "이번 구간 하차 정류소"에 근접하면 "곧 내려요" 힌트만 띄운다.
+    // 하차 판단은 여전히 유저 선언("도착했어요"/"환승하러 내렸어요" 탭).
+    // 환승 구간이면 환승 정류소를, 마지막 구간이면 최종 하차역을 기준으로 함.
+    // 위치 권한이 없거나 좌표를 모르면(거리 nil) 조용히 미표시.
 
     private func approachDistance(_ option: BoardableOption) -> Double? {
-        guard !hasTransfer(option),
-              let coord = vm.toPlace?.coordinate,
+        guard let coord = getoffCoord(option),
               let d = location.distance(to: coord),
               d <= 600 else { return nil }
         return d
     }
 
-    func approachBanner(distance: Double, stop: String) -> some View {
+    /// 이번 구간 하차 정류소 좌표. 경유역 좌표가 있으면 마지막(=하차역),
+    /// 없을 땐 환승 구간은 좌표 미상이라 nil, 마지막 구간만 최종 목적지로 대체.
+    private func getoffCoord(_ option: BoardableOption) -> Coordinate? {
+        if let last = option.afterSteps.first(where: { $0.type == .getOff })?.passStopCoords?.last {
+            return last
+        }
+        return hasTransfer(option) ? nil : vm.toPlace?.coordinate
+    }
+
+    func approachBanner(distance: Double, stop: String, isTransfer: Bool) -> some View {
         let meters = Int((distance / 10).rounded()) * 10  // 10m 단위 반올림
+        let title = isTransfer ? "곧 \(stop)에서 내려서 환승해요" : "곧 \(stop)에서 내려요"
         return HStack(spacing: 11) {
             ZStack {
                 Circle().fill(Color.appGreen).frame(width: 36, height: 36)
@@ -206,7 +226,7 @@ struct OnboardView: View {
                     .foregroundColor(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("곧 \(stop)에서 내려요")
+                Text(title)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.primary)
                 Text("약 \(meters)m 남음 · 내릴 준비하세요")
@@ -307,138 +327,286 @@ struct OnboardView: View {
 
     private func getoffName(_ option: BoardableOption) -> String {
         if let g = option.afterSteps.first(where: { $0.type == .getOff }) {
-            // "강남역에서 하차" → "강남역" 형태로 정리
-            let t = g.title.replacingOccurrences(of: "에서 하차", with: "")
+            // "강남역 하차" / "강남역에서 하차" → "강남역" 형태로 정리
+            var t = g.title.replacingOccurrences(of: "에서 하차", with: "")
+            if t.hasSuffix("하차") { t = String(t.dropLast(2)) }
+            t = t.trimmingCharacters(in: .whitespaces)
             if !t.isEmpty { return t }
         }
         return vm.toPlace?.name ?? "도착지"
     }
 }
 
-// MARK: - 경로 스텝 행 (세로 타임라인, HTML tlv 스타일)
+// MARK: - 버스 탑승 구간 타임라인 (HTML .tlv 스타일)
+//
+// 탑승역(지나옴) → 현재 위치(펄스) → "앞으로 N 정거장"(접힘, 탭하면 경유역 펼침).
+// 하차역은 바로 아래 getoffBox가 받는다. 다음 leg(환승/도보/도착)는 여기 두지 않는다.
+//
+// "지금 어디쯤?" — 버스는 지상이라 GPS가 잘 잡혀서, 내 위치에서 가장 가까운
+// 경유 정류장을 현재 위치로 본다. 좌표(coords)가 없거나 위치 권한이 없거나
+// 경로에서 너무 멀면(>1.5km) 위치 표시를 끄고 기존 정적 타임라인으로 폴백.
 
-struct StepRow: View {
-    let step: RouteStep
-    let isLast: Bool
+struct BusRideTimeline: View {
+    let boardStop: String
+    let stops: [String]            // 전체 경유 정류장 [탑승역 … 하차역]. 없을 수 있음.
+    let coords: [Coordinate]       // stops와 같은 순서·길이의 좌표 (GPS 매칭용). 없으면 빈 배열.
+    let remainingFallback: Int     // 이름 데이터가 없을 때 쓸 "남은 정거장 수"
+    @ObservedObject private var location = LocationManager.shared
+    @State private var expanded = false
 
-    var dotColor: Color {
-        switch step.type {
-        case .getOff:   return .appBlue
-        case .walk:     return Color(.systemGray3)
-        case .transfer: return .appOrange
-        case .board:    return .appGreen
-        case .arrive:   return .appPurple
+    private var lastIdx: Int { max(0, stops.count - 1) }
+
+    // GPS로 추정한 현재 위치(가장 가까운 정류장 인덱스). 신뢰 못 하면 nil.
+    private var currentIndex: Int? {
+        guard coords.count == stops.count, stops.count >= 2, location.current != nil else { return nil }
+        var best = 0
+        var bestD = Double.greatestFiniteMagnitude
+        for (i, c) in coords.enumerated() {
+            if let d = location.distance(to: c), d < bestD { bestD = d; best = i }
         }
+        return bestD <= 1500 ? best : nil   // 경로에서 너무 멀면 오탐 방지로 미표시
     }
 
     var body: some View {
+        Group {
+            if let cur = currentIndex {
+                liveTimeline(current: cur)
+            } else {
+                staticTimeline()
+            }
+        }
+        .padding(.bottom, 8)
+    }
+
+    // MARK: 실시간(GPS) 타임라인
+
+    @ViewBuilder
+    private func liveTimeline(current cur: Int) -> some View {
+        let remaining = max(0, lastIdx - cur)
+        let upMids = (cur + 1 <= lastIdx - 1) ? Array(stops[(cur + 1)..<lastIdx]) : []
+        VStack(spacing: 0) {
+            if cur == 0 {
+                // 탑승역이 곧 현재 위치
+                node(kind: .current, isLast: false) {
+                    Text(boardStop).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+                    Text("여기서 탔어요 · 지금 여기쯤").font(.system(size: 13)).foregroundColor(.appBlue)
+                }
+            } else {
+                node(kind: .passed, isLast: false) {
+                    Text(boardStop).font(.system(size: 15, weight: .semibold)).foregroundColor(.secondary)
+                    Text(cur > 1 ? "여기서 탔어요 · \(cur - 1)정거장 지나옴" : "여기서 탔어요")
+                        .font(.system(size: 13)).foregroundColor(.secondary)
+                }
+                node(kind: .current, isLast: false) {
+                    Text(stops[cur]).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+                    Text("지금 여기쯤").font(.system(size: 13)).foregroundColor(.appBlue)
+                }
+            }
+            upcomingNode(kind: .upcoming, remaining: remaining, mids: upMids)
+        }
+    }
+
+    // MARK: 정적 타임라인(폴백) — 위치 정보 없을 때 기존 동작
+
+    @ViewBuilder
+    private func staticTimeline() -> some View {
+        let mids = stops.count > 2 ? Array(stops[1..<lastIdx]) : []
+        let remaining = stops.isEmpty ? remainingFallback : lastIdx
+        VStack(spacing: 0) {
+            node(kind: .passed, isLast: false) {
+                Text(boardStop).font(.system(size: 15, weight: .semibold)).foregroundColor(.secondary)
+                Text("여기서 탔어요").font(.system(size: 13)).foregroundColor(.secondary)
+            }
+            // 위치를 모를 땐 "앞으로" 노드에 펄스를 줘서 이동 중임을 표현 (기존 동작)
+            upcomingNode(kind: .current, remaining: remaining, mids: mids)
+        }
+    }
+
+    // MARK: 공통 노드
+
+    enum NodeKind { case passed, current, upcoming }
+
+    @ViewBuilder
+    private func node<Content: View>(kind: NodeKind, isLast: Bool, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(spacing: 0) {
-                Circle().fill(dotColor).frame(width: 12, height: 12).padding(.top, 4)
+                dot(kind).padding(.top, 4)
                 if !isLast {
-                    Rectangle().fill(Color.appLine).frame(width: 2).frame(minHeight: 38)
+                    Rectangle().fill(Color.appLine).frame(width: 2).frame(minHeight: 26)
                 }
             }
             .frame(width: 16)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(step.title).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
-                if !step.description.isEmpty {
-                    Text(step.description).font(.system(size: 13)).foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let detail = step.detail {
-                    Text(detail).font(.system(size: 12)).foregroundColor(.secondary)
-                }
-                badge
-            }
-            .padding(.bottom, isLast ? 0 : 18)
+            VStack(alignment: .leading, spacing: 2, content: content)
+                .padding(.bottom, isLast ? 0 : 18)
             Spacer()
         }
     }
 
-    var badge: some View {
-        let style = badgeStyle
-        return HStack(spacing: 5) {
-            Image(systemName: style.icon).font(.system(size: 12))
-            Text(badgeText).font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundColor(style.fg)
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(style.bg, in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    var badgeStyle: (bg: Color, fg: Color, icon: String) {
-        switch step.type {
-        case .getOff:   return (Color.appBlue.opacity(0.12), .appBlue, "arrow.down.circle")
-        case .walk:     return (Color(.tertiarySystemBackground), .secondary, "figure.walk")
-        case .transfer: return (Color.appOrange.opacity(0.12), .appOrange, "arrow.triangle.2.circlepath")
-        case .board:    return (Color.appGreen.opacity(0.14), Color(hex: "#1f9e44"), "tram.fill")
-        case .arrive:   return (Color.appPurple.opacity(0.12), .appPurple, "flag.fill")
+    @ViewBuilder
+    private func dot(_ kind: NodeKind) -> some View {
+        switch kind {
+        case .current:
+            Circle().fill(Color.appBlue).frame(width: 12, height: 12)
+                .overlay(Circle().stroke(Color.appBlue.opacity(0.18), lineWidth: 4).scaleEffect(1.7))
+        case .passed:
+            Circle().fill(Color.appBlue).frame(width: 12, height: 12)
+        case .upcoming:
+            Circle().fill(Color.appBlue).frame(width: 12, height: 12)
         }
     }
 
-    var badgeText: String {
-        switch step.type {
-        case .getOff:   return "하차"
-        case .walk:     return step.durationMinutes.map { "도보 \($0)분" } ?? "도보"
-        case .transfer: return "환승"
-        case .board:
-            let num = step.vehicle?.number ?? ""
-            let stops = step.stopsCount.map { " · \($0)정거장" } ?? ""
-            return num + stops
-        case .arrive:   return "목적지 도착"
+    // "앞으로 N 정거장" 노드 — 접고 펼치기 (마지막 노드)
+    @ViewBuilder
+    private func upcomingNode(kind: NodeKind, remaining: Int, mids: [String]) -> some View {
+        node(kind: kind, isLast: true) {
+            if remaining <= 0 {
+                Text("곧 내려요").font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+            } else if mids.isEmpty {
+                Text("앞으로 \(remaining) 정거장").font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+            } else {
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { expanded.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("앞으로 \(remaining) 정거장")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .rotationEffect(.degrees(expanded ? 180 : 0))
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if expanded {
+                    VStack(alignment: .leading, spacing: 11) {
+                        ForEach(Array(mids.enumerated()), id: \.offset) { _, s in
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(Color(.systemBackground))
+                                    .frame(width: 7, height: 7)
+                                    .overlay(Circle().stroke(Color(.systemGray3), lineWidth: 2))
+                                Text(s)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.top, 11)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
         }
     }
 }
 
 // MARK: - 지하철 가로 노선도 (ux_stage3_sub)
 //
-// 현재역(펄스) → 앞으로 갈 역들(회색) → 하차역(강조)을 가로로. 호선색은 vehicle.lineColor.
-// 역별 실시간 위치 데이터가 없으므로 정거장 수(upcomingStops)로 점만 표현한다.
+// 지나온 역 → 현재 위치(펄스) → 앞으로 갈 역들 → 하차역(강조)을 가로로. 호선색은 vehicle.lineColor.
+//
+// "지금 어디쯤?" — 지하철은 지하라 GPS가 약하고 실시간 차량위치 API도 없어서,
+// 탑승 시각(boardedAt)부터의 경과시간 ÷ 총 소요시간으로 진행 위치를 "추정"한다.
+// boardedAt/소요시간이 없으면 첫 역을 현재 위치로 두는 기존 동작으로 폴백.
 
 struct SubwayRouteMap: View {
     let lineColor: Color
     let originName: String
     let exitName: String
+    // 경유역 이름들(현재역 ~ 하차역 포함). 있으면 중간역 이름까지 표시, 없으면 정거장 수로 점만.
+    var passStops: [String]? = nil
     let upcomingStops: Int
+    // 진행 위치 추정용 — 탑승 시각, 이 구간 총 소요(분)
+    var boardedAt: Date? = nil
+    var totalRideMinutes: Int? = nil
+
+    // 칸 레이아웃 상수 — 이름 2줄(34) + 간격(8) + 점 영역(36). 점 영역은 현재역 펄스링까지 안 잘리게 넉넉히.
+    private let nameHeight: CGFloat = 34
+    private let gap: CGFloat = 8
+    private let dotZone: CGFloat = 36
+    private let colWidth: CGFloat = 78
+
+    // 표시할 역 이름 [탑승역, 중간역…, 하차역]. 이름 데이터가 있으면 그대로, 없으면 정거장 수만큼 빈 칸.
+    private var names: [String] {
+        if let ps = passStops, ps.count >= 2 {
+            var arr = ps
+            arr[0] = originName
+            arr[arr.count - 1] = exitName
+            return arr
+        }
+        return [originName] + Array(repeating: "", count: max(0, upcomingStops - 1)) + [exitName]
+    }
+
+    // 경과시간 기반 현재 위치 인덱스 추정 (0 = 탑승역). 데이터 없으면 0.
+    private func currentIndex(now: Date) -> Int {
+        let lastIdx = max(0, names.count - 1)
+        guard let boarded = boardedAt, let total = totalRideMinutes, total > 0 else { return 0 }
+        let elapsedMin = now.timeIntervalSince(boarded) / 60.0
+        let frac = min(max(elapsedMin / Double(total), 0), 1)
+        return Int((frac * Double(lastIdx)).rounded())
+    }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        // 5초마다 다시 그려 진행 위치를 갱신
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            mapBody(current: currentIndex(now: context.date))
+        }
+        .frame(height: nameHeight + gap + dotZone)
+    }
+
+    private func mapBody(current: Int) -> some View {
+        let lastIdx = max(0, names.count - 1)
+        let lineTop = nameHeight + gap + dotZone / 2 - 3
+        return ScrollView(.horizontal, showsIndicators: false) {
             ZStack(alignment: .leading) {
-                // 기준선 (지나온 = 회색, 앞으로 = 호선색은 점으로 표현하므로 라인은 호선색)
+                // 기준선(전체, 옅게)
                 Capsule()
-                    .fill(lineColor.opacity(0.85))
+                    .fill(lineColor.opacity(0.25))
                     .frame(height: 6)
-                    .padding(.horizontal, 37)
-                    .padding(.top, 26)
+                    .padding(.horizontal, colWidth / 2)
+                    .padding(.top, lineTop)
+                // 지나온 구간(진하게) — 탑승역 점부터 현재 위치 점까지
+                Capsule()
+                    .fill(lineColor)
+                    .frame(width: CGFloat(min(current, lastIdx)) * colWidth, height: 6)
+                    .padding(.leading, colWidth / 2)
+                    .padding(.top, lineTop)
 
                 HStack(spacing: 0) {
-                    station(name: originName, kind: .current)
-                    ForEach(0..<max(0, upcomingStops - 1), id: \.self) { _ in
-                        station(name: "", kind: .upcoming)
+                    ForEach(Array(names.enumerated()), id: \.offset) { idx, n in
+                        station(name: n, kind: kind(idx: idx, last: lastIdx, current: current))
                     }
-                    station(name: exitName, kind: .exit)
                 }
             }
         }
-        .frame(height: 64)
     }
 
-    enum StationKind { case current, upcoming, exit }
+    enum StationKind { case passed, current, upcoming, exit }
+
+    private func kind(idx: Int, last: Int, current: Int) -> StationKind {
+        if idx == last { return .exit }
+        if idx < current { return .passed }
+        if idx == current { return .current }
+        return .upcoming
+    }
 
     func station(name: String, kind: StationKind) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: gap) {
+            // 이름: 길어도 안 잘리도록 2줄 허용 + 살짝 축소. 점 쪽(아래)으로 정렬해 점 위치 고정.
             Text(name)
                 .font(.system(size: kind == .current ? 12.5 : 11,
-                              weight: kind == .upcoming ? .regular : .bold))
+                              weight: kind == .upcoming || kind == .passed ? .regular : .bold))
                 .foregroundColor(nameColor(kind))
-                .lineLimit(1)
-                .frame(height: 16)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .frame(width: colWidth, height: nameHeight, alignment: .bottom)
 
             dot(kind)
+                .frame(height: dotZone)
         }
-        .frame(width: 74)
+        .frame(width: colWidth)
     }
 
     @ViewBuilder
@@ -450,6 +618,11 @@ struct SubwayRouteMap: View {
                 .frame(width: 20, height: 20)
                 .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
                 .overlay(Circle().stroke(lineColor.opacity(0.25), lineWidth: 5).scaleEffect(1.5))
+        case .passed:
+            Circle()
+                .fill(lineColor)
+                .frame(width: 12, height: 12)
+                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2.5))
         case .upcoming:
             Circle()
                 .fill(Color(hex: "#c8ccd4"))
@@ -466,6 +639,7 @@ struct SubwayRouteMap: View {
     func nameColor(_ kind: StationKind) -> Color {
         switch kind {
         case .current:  return lineColor
+        case .passed:   return lineColor.opacity(0.55)
         case .upcoming: return .secondary
         case .exit:     return .primary
         }

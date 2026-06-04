@@ -45,6 +45,39 @@ final class ODsayService {
         return flattenToBoardableOptions(response: response, to: to)
     }
 
+    // MARK: - 경로 그래픽 (지도 폴리라인)
+    //
+    // path.info.mapObj 를 loadLane 에 넘기면 그 경로의 좌표열(graphPos)을 돌려준다.
+    // 도보 구간은 보통 포함되지 않으므로 탑승 구간 선만 그려진다.
+    // 전 구간을 한 색(추천 수단 색)으로 칠한다 — 멀티 leg 색 구분은 추후 과제.
+
+    func fetchRouteGraphic(mapObj: String, colorHex: String) async throws -> [RouteLine] {
+        var components = URLComponents(string: "https://api.odsay.com/v1/api/loadLane")!
+        components.queryItems = [
+            URLQueryItem(name: "apiKey", value: apiKey),
+            URLQueryItem(name: "mapObject", value: "0:0@\(mapObj)")
+        ]
+        let (data, _) = try await session.data(for: URLRequest(url: components.url!))
+        let response = try JSONDecoder().decode(ODsayLaneResponse.self, from: data)
+
+        if let err = response.error {
+            throw ODsayError.api(code: err.code ?? "?", msg: err.msg ?? "unknown")
+        }
+
+        var lines: [RouteLine] = []
+        for lane in response.result?.lane ?? [] {
+            for section in lane.section ?? [] {
+                let coords = (section.graphPos ?? []).compactMap { gp -> Coordinate? in
+                    guard let x = gp.x, let y = gp.y else { return nil }
+                    return Coordinate(lat: y, lng: x)   // ODsay: x=경도, y=위도
+                }
+                guard coords.count >= 2 else { continue }
+                lines.append(RouteLine(coordinates: coords, colorHex: colorHex))
+            }
+        }
+        return lines
+    }
+
     // MARK: - flatten
 
     private func flattenToBoardableOptions(response: ODsayPathResponse, to: Place) -> [BoardableOption] {
@@ -111,6 +144,7 @@ final class ODsayService {
                 arrivalMinutes: nil,        // 실시간 API로 채움
                 nextArrivalMinutes: nil,
                 totalMinutes: path.info.totalTime,
+                mapObj: path.info.mapObj,
                 originStop: originStop,
                 walkToStopMinutes: leadingWalk > 0 ? leadingWalk : nil,
                 afterSteps: buildAfterSteps(path: path, firstTransitIdx: firstTransitIdx, toPlace: to)
@@ -130,7 +164,15 @@ final class ODsayService {
             let sp = subPaths[i]
 
             if i == firstTransitIdx {
-                // 첫 탑승 수단의 하차 정보
+                // 첫 탑승 수단의 하차 정보 + 경유역(이름/좌표)
+                let stations = sp.passStopList?.stations ?? []
+                let names = stations.compactMap { $0.stationName }
+                // 좌표는 모든 경유역에 다 있을 때만(이름과 길이 일치) 사용 — 그래야 인덱스가 안 어긋남
+                let coordsAll = stations.compactMap { st -> Coordinate? in
+                    guard let x = st.x, let y = st.y else { return nil }
+                    return Coordinate(lat: y, lng: x)   // ODsay: x=경도, y=위도
+                }
+                let coords = (coordsAll.count == names.count && !coordsAll.isEmpty) ? coordsAll : nil
                 steps.append(RouteStep(
                     type: .getOff,
                     title: "\(sp.endName ?? "") 하차",
@@ -138,7 +180,9 @@ final class ODsayService {
                     detail: nil,
                     durationMinutes: sp.sectionTime,
                     stopsCount: sp.stationCount,
-                    vehicle: nil
+                    vehicle: nil,
+                    passStops: names.isEmpty ? nil : names,
+                    passStopCoords: coords
                 ))
                 continue
             }
@@ -235,6 +279,31 @@ struct ODsayPathInfo: Codable {
     let subwayTransitCount: Int?
     let firstStartStation: String?
     let lastEndStation: String?
+    let mapObj: String?          // loadLane 그래픽 경로 조회용 토큰
+}
+
+// MARK: - loadLane (그래픽 경로) 응답 모델
+
+struct ODsayLaneResponse: Codable {
+    let result: ODsayLaneResult?
+    let error: ODsayApiErrorBody?
+}
+
+struct ODsayLaneResult: Codable {
+    let lane: [ODsayGraphLane]?
+}
+
+struct ODsayGraphLane: Codable {
+    let section: [ODsayGraphSection]?
+}
+
+struct ODsayGraphSection: Codable {
+    let graphPos: [ODsayGraphPos]?
+}
+
+struct ODsayGraphPos: Codable {
+    let x: Double?
+    let y: Double?
 }
 
 struct ODsaySubPath: Codable {
@@ -252,6 +321,34 @@ struct ODsaySubPath: Codable {
     let startY: Double?
     let endX: Double?
     let endY: Double?
+    let passStopList: ODsayPassStopList?
+}
+
+// 탑승~하차 사이 경유역 목록 (지하철/버스 공통)
+struct ODsayPassStopList: Codable {
+    let stations: [ODsayStation]?
+}
+
+struct ODsayStation: Codable {
+    let stationName: String?
+    let x: Double?              // 경도 (ODsay는 문자열/숫자 혼용 → 둘 다 허용)
+    let y: Double?              // 위도
+
+    enum CodingKeys: String, CodingKey { case stationName, x, y }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        stationName = try c.decodeIfPresent(String.self, forKey: .stationName)
+        x = ODsayStation.flexDouble(c, .x)
+        y = ODsayStation.flexDouble(c, .y)
+    }
+
+    // 좌표가 "127.02" 문자열로 올 수도, 숫자로 올 수도 있어 둘 다 시도. 실패해도 nil(경로 로딩은 안 깨짐).
+    private static func flexDouble(_ c: KeyedDecodingContainer<CodingKeys>, _ k: CodingKeys) -> Double? {
+        if let d = try? c.decodeIfPresent(Double.self, forKey: k) { return d }
+        if let s = try? c.decodeIfPresent(String.self, forKey: k) { return Double(s) }
+        return nil
+    }
 }
 
 struct ODsayLane: Codable {

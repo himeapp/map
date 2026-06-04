@@ -37,7 +37,7 @@ struct WaitingView: View {
                 .foregroundColor(.secondary)
                 .lineLimit(1)
             Spacer()
-            Button(action: { Task { await vm.fetchRoutes() } }) {
+            Button(action: { Task { await vm.refreshRealtimeArrivals() } }) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.secondary)
@@ -70,6 +70,20 @@ struct WaitingView: View {
 
     // MARK: - 버스 목록 (정류장 그룹별)
 
+    // ①에서 고른 경로가 든 그룹을 맨 위로 올리고 "고른 길"로 표시.
+    // 아직 안 고른 경우(환승 후 재진입 등)엔 종전처럼 첫 그룹을 리드로.
+    private var orderedGroups: [(group: DepartureGroup, isLead: Bool)] {
+        let groups = vm.departureGroups
+        if let chosen = vm.chosenOptionID,
+           let leadIdx = groups.firstIndex(where: { g in g.options.contains { $0.id == chosen } }) {
+            var reordered = groups
+            let lead = reordered.remove(at: leadIdx)
+            reordered.insert(lead, at: 0)
+            return reordered.enumerated().map { ($0.element, $0.offset == 0) }
+        }
+        return groups.enumerated().map { ($0.element, $0.offset == 0) }
+    }
+
     var busOptionsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
@@ -81,10 +95,10 @@ struct WaitingView: View {
                         .padding(.top, 40)
                 }
 
-                ForEach(Array(vm.departureGroups.enumerated()), id: \.element.id) { idx, group in
+                ForEach(orderedGroups, id: \.group.id) { entry in
                     DepartureGroupSection(
-                        group: group,
-                        isLead: idx == 0,
+                        group: entry.group,
+                        isLead: entry.isLead,
                         pendingBoardID: $pendingBoardID
                     )
                 }
@@ -165,7 +179,7 @@ struct DepartureGroupSection: View {
                     if i > 0 { Divider().padding(.leading, 16) }
                     BusRow(
                         option: option,
-                        isPick: isLead && i == 0,
+                        isPick: isLead && (vm.chosenOptionID == nil ? i == 0 : option.id == vm.chosenOptionID),
                         isPending: pendingBoardID == option.id
                     )
                     .contentShape(Rectangle())
