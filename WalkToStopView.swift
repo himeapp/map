@@ -7,6 +7,7 @@ import SwiftUI
 
 struct WalkToStopView: View {
     @EnvironmentObject var vm: TransitViewModel
+    @State private var showOrientation = false
 
     var body: some View {
         let group = vm.walkingGroup
@@ -15,6 +16,7 @@ struct WalkToStopView: View {
             VStack(spacing: 0) {
                 directionHeader(group: group)
                 progressBar
+                orientationButton(group: group)
                 Divider().padding(.vertical, 14)
                 stopRow(group: group)
                 arrivedButton
@@ -23,6 +25,39 @@ struct WalkToStopView: View {
             .padding(.bottom, 24)
         }
         .background(Color(.systemBackground))
+        .sheet(isPresented: $showOrientation) {
+            if let coord = group?.stop.coordinate {
+                OrientationView(
+                    target: coord,
+                    targetName: group?.stop.name.isEmpty == false ? group!.stop.name : "정류소",
+                    onClose: { showOrientation = false }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.hidden)
+            }
+        }
+    }
+
+    // MARK: - 간판 읽고 방향 잡기 (길치용)
+
+    @ViewBuilder
+    func orientationButton(group: DepartureGroup?) -> some View {
+        if group?.stop.coordinate != nil {
+            Button { showOrientation = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "mic.fill").font(.system(size: 15, weight: .bold))
+                    Text("어느 쪽으로 가요? 간판 읽고 방향 잡기")
+                        .font(.system(size: 14.5, weight: .bold))
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                }
+                .foregroundColor(.appBlue)
+                .padding(.horizontal, 16).padding(.vertical, 13)
+                .background(Color.appBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 14)
+        }
     }
 
     var handle: some View {

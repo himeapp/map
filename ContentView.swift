@@ -23,10 +23,10 @@ struct ContentView: View {
                 HomeView()
 
             case .routes:
-                // ① 전체 경로 — 지도 위에 큰 바텀시트로 경로 목록
+                // ① 전체 경로 — 지도 위 모달(작게/중간/크게)로 경로 목록
                 ZStack(alignment: .bottom) {
                     HomeView()
-                    BottomSheet(detent: .large) {
+                    BottomSheet {
                         RouteResultsView()
                     }
                 }
@@ -60,7 +60,7 @@ struct ContentView: View {
             case .transferWalking:
                 ZStack(alignment: .bottom) {
                     HomeView()
-                    BottomSheet(detent: .large) {
+                    BottomSheet {
                         TransferView()
                     }
                 }
@@ -68,16 +68,16 @@ struct ContentView: View {
             case .onboard:
                 ZStack(alignment: .bottom) {
                     HomeView()
-                    BottomSheet(detent: .large) {
+                    BottomSheet {
                         OnboardView()
                     }
                 }
 
             case .arrived:
-                // 도착 요약은 지도를 가리는 전체 화면 시트
+                // 도착 요약 모달 (작게/중간/크게)
                 ZStack(alignment: .bottom) {
                     HomeView()
-                    BottomSheet(detent: .large) {
+                    BottomSheet {
                         ArriveView()
                     }
                 }
@@ -85,7 +85,7 @@ struct ContentView: View {
             case .intercity:
                 ZStack(alignment: .bottom) {
                     HomeView()
-                    BottomSheet(detent: .large) {
+                    BottomSheet {
                         IntercityView()
                     }
                 }
@@ -120,8 +120,9 @@ struct BottomSheet<Content: View>: View {
     /// 손잡이를 끄는 동안의 실시간 오프셋(아래로 끌면 +, 위로 끌면 −).
     @State private var drag: CGFloat = 0
 
+    // 기본은 "작게/중간/크게" 3단계 모달 — 전체화면(크게)이 기본은 아니고 중간에서 연다.
     init(detent: Detent = .medium,
-         allowed: [Detent] = [.medium, .large],
+         allowed: [Detent] = [.small, .medium, .large],
          @ViewBuilder content: @escaping () -> Content) {
         self.allowed = allowed
         self.content = content
@@ -131,6 +132,12 @@ struct BottomSheet<Content: View>: View {
     private var minFraction: CGFloat { (allowed.map(\.fraction).min() ?? 0.30) }
     private var maxFraction: CGFloat { (allowed.map(\.fraction).max() ?? 0.92) }
 
+    // 시트가 높을수록 뒤 지도를 더 어둡게 — "지도 위 카드"가 아니라 모달 레이어로 읽히게.
+    private func scrimOpacity(height: CGFloat, H: CGFloat) -> Double {
+        guard H > 0 else { return 0 }
+        return min(0.45, Double(height / H) * 0.5)
+    }
+
     var body: some View {
         GeometryReader { geo in
             let H = geo.size.height
@@ -139,42 +146,49 @@ struct BottomSheet<Content: View>: View {
                                  H * minFraction),
                              H * maxFraction)
 
-            VStack(spacing: 0) {
-                // 손잡이 — 이 영역을 끌어 시트 높이를 조절한다.
-                Capsule()
-                    .fill(Color(.systemGray4))
-                    .frame(width: 36, height: 5)
-                    .padding(.top, 8)
-                    .padding(.bottom, 6)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())   // 손잡이 주변 전체를 잡을 수 있게
-                    .gesture(
-                        DragGesture(minimumDistance: 1)
-                            .onChanged { value in
-                                drag = value.translation.height
-                            }
-                            .onEnded { value in
-                                // 빠르게 튕기면 더 멀리 가도록 예측 위치로 가까운 디텐트 선택.
-                                let projected = H * current.fraction - value.predictedEndTranslation.height
-                                let target = allowed.min(by: {
-                                    abs(H * $0.fraction - projected) < abs(H * $1.fraction - projected)
-                                }) ?? current
-                                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                                    current = target
-                                    drag = 0
-                                }
-                            }
-                    )
+            ZStack(alignment: .bottom) {
+                // 딤 배경 — 이게 있어야 떠다니는 팝업이 아니라 모달처럼 보인다.
+                Color.black.opacity(scrimOpacity(height: height, H: H))
+                    .ignoresSafeArea()
 
-                content()
-                    .frame(maxHeight: .infinity, alignment: .top)
+                VStack(spacing: 0) {
+                    // 손잡이 — 이 띠 전체(넉넉한 그랩 영역)를 끌어 시트 높이를 조절한다.
+                    // 좌표계를 .global 로 잡아야 시트가 손가락 밑에서 리사이즈돼도
+                    // translation 이 튀지 않고 매끄럽게 따라온다.
+                    Capsule()
+                        .fill(Color(.systemGray3))
+                        .frame(width: 40, height: 5)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                                .onChanged { value in
+                                    drag = value.translation.height
+                                }
+                                .onEnded { value in
+                                    // 빠르게 튕기면 더 멀리 가도록 예측 위치로 가까운 디텐트 선택.
+                                    let projected = H * current.fraction - value.predictedEndTranslation.height
+                                    let target = allowed.min(by: {
+                                        abs(H * $0.fraction - projected) < abs(H * $1.fraction - projected)
+                                    }) ?? current
+                                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                                        current = target
+                                        drag = 0
+                                    }
+                                }
+                        )
+
+                    content()
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .background(Color(.systemBackground))
+                // 상단만 둥글게 + 바닥은 화면 끝까지 — 바닥에 붙은 진짜 시트로 보이게.
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+                .shadow(color: .black.opacity(0.12), radius: 16, y: -4)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(color: .black.opacity(0.12), radius: 16, y: -4)
-            .frame(maxHeight: .infinity, alignment: .bottom)
         }
         .ignoresSafeArea()
     }

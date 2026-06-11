@@ -260,16 +260,20 @@ struct JourneyStrip: View {
     let legs: [JourneyLeg]
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(legs.enumerated()), id: \.offset) { i, leg in
-                if i > 0 {
-                    Image(systemName: "chevron.compact.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(.systemGray3))
+        // 칩이 한 줄에 안 들어가면 세로로 줄바꿈돼 "막대처럼" 깨지므로,
+        // 가로 스크롤로 흘려서 칩은 항상 제 너비(lineLimit 1)를 유지한다.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(legs.enumerated()), id: \.offset) { i, leg in
+                    if i > 0 {
+                        Image(systemName: "chevron.compact.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color(.systemGray3))
+                    }
+                    legChip(leg)
                 }
-                legChip(leg)
             }
-            Spacer(minLength: 0)
+            .padding(.vertical, 1)
         }
     }
 
@@ -281,6 +285,8 @@ struct JourneyStrip: View {
                 Image(systemName: "figure.walk").font(.system(size: 10, weight: .bold))
                 Text("\(m)분").font(.system(size: 12, weight: .semibold))
             }
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .foregroundColor(.secondary)
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(Color(.systemGray6), in: Capsule())
@@ -294,6 +300,8 @@ struct JourneyStrip: View {
                     Text("\(m)분").font(.system(size: 12, weight: .semibold)).opacity(0.85)
                 }
             }
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .foregroundColor(.white)
             .padding(.horizontal, 9).padding(.vertical, 4)
             .background(vehicle.displayColor, in: Capsule())

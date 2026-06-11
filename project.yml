@@ -39,6 +39,9 @@ targets:
         # --- 위치 권한 ---
         NSLocationWhenInUseUsageDescription: 현재 위치를 출발지로 사용하기 위해 필요합니다
         NSLocationAlwaysAndWhenInUseUsageDescription: 경로 안내 중 위치 추적에 사용됩니다
+        # --- 간판 읽기(방향 잡기) 권한 ---
+        NSMicrophoneUsageDescription: 정면 간판을 소리내어 읽으면 내가 보는 방향을 잡아드려요
+        NSSpeechRecognitionUsageDescription: 읽은 간판 이름을 글자로 바꿔 위치·방향을 계산합니다
         # --- 백그라운드 위치 갱신 (잠금화면/백그라운드에서도 도착 알림) ---
         UIBackgroundModes:
           - location

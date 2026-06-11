@@ -18,15 +18,23 @@ extension Color {
                   blue: Double(b) / 255, opacity: Double(a) / 255)
     }
 
-    // 기획서 팔레트
+    /// 라이트/다크 각각의 hex로 동적 색을 만든다 (다크모드 대응용).
+    init(light: String, dark: String) {
+        self = Color(UIColor { tc in
+            UIColor(Color(hex: tc.userInterfaceStyle == .dark ? dark : light))
+        })
+    }
+
+    // 기획서 팔레트 — 강조색은 라이트/다크 공통, 회색·배경은 시스템 시맨틱 색으로 자동 대응
     static let appBlue   = Color(hex: "#0a84ff")
     static let appGreen  = Color(hex: "#34c759")
     static let appOrange = Color(hex: "#ff9f0a")
     static let appPurple = Color(hex: "#bf5af2")
     static let appRed    = Color(hex: "#ff3b30")
-    static let appLine   = Color(hex: "#e9e9ed")
-    static let appSec    = Color(hex: "#8a8a8e")
-    static let appBg     = Color(hex: "#f2f2f7")
+    static let appLine   = Color(.systemGray5)            // 구분선·타임라인 레일 (라이트 #e9e9ed 근사)
+    static let appSec    = Color(.secondaryLabel)         // 보조 텍스트·도보 표시 (라이트 #8a8a8e 근사)
+    static let appBg     = Color(.systemGroupedBackground) // 화면 배경 (라이트 #f2f2f7 동일)
+    static let appWarnBg = Color(light: "#fff8f0", dark: "#2b2012") // 경고 카드 따뜻한 배경
 
     // 버스 번호 등급별 색 (간선=파랑 / 지선=초록 / 광역=빨강)
     static let busTrunk  = Color(hex: "#0a84ff")

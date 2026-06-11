@@ -31,13 +31,34 @@ final class KakaoTransitService {
         let (data, _) = try await session.data(for: request)
         let response = try JSONDecoder().decode(KakaoPlaceResponse.self, from: data)
 
-        return response.documents.map { doc in
-            Place(
-                name: doc.place_name,
-                address: doc.road_address_name.isEmpty ? doc.address_name : doc.road_address_name,
-                coordinate: Coordinate(lat: Double(doc.y) ?? 0, lng: Double(doc.x) ?? 0)
-            )
-        }
+        return response.documents.map(Self.place(from:))
+    }
+
+    /// 현재 위치 중심 반경 검색 (간판 읽기 방향 잡기용). 가까운 순으로 정렬돼 옴.
+    func searchPlacesNear(query: String, lat: Double, lng: Double, radius: Int = 1000) async throws -> [Place] {
+        var components = URLComponents(string: "https://dapi.kakao.com/v2/local/search/keyword.json")!
+        components.queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "x", value: String(lng)),
+            URLQueryItem(name: "y", value: String(lat)),
+            URLQueryItem(name: "radius", value: String(min(max(radius, 1), 20000))),
+            URLQueryItem(name: "sort", value: "distance"),
+            URLQueryItem(name: "size", value: "15")
+        ]
+        var request = URLRequest(url: components.url!)
+        request.setValue("KakaoAK \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder().decode(KakaoPlaceResponse.self, from: data)
+        return response.documents.map(Self.place(from:))
+    }
+
+    private static func place(from doc: KakaoPlace) -> Place {
+        Place(
+            name: doc.place_name,
+            address: doc.road_address_name.isEmpty ? doc.address_name : doc.road_address_name,
+            coordinate: Coordinate(lat: Double(doc.y) ?? 0, lng: Double(doc.x) ?? 0)
+        )
     }
 }
 

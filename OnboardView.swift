@@ -41,13 +41,13 @@ struct OnboardView: View {
                         timeline(option: option)
                     }
                     getoffBox(option: option)
-                        .padding(.top, 4)
+                        .padding(.top, 8)
                     if hasTransfer(option) {
                         transferButton
-                            .padding(.top, 12)
+                            .padding(.top, 18)
                     } else {
                         arrivedButton
-                            .padding(.top, 12)
+                            .padding(.top, 18)
                     }
                 }
                 .padding(.horizontal, 18)
@@ -98,7 +98,7 @@ struct OnboardView: View {
             .foregroundColor(.white)
             .padding(.horizontal, 12).padding(.vertical, 5)
             .background(option.vehicle.displayColor, in: Capsule())
-            .padding(.bottom, 8)
+            .padding(.bottom, 12)
     }
 
     // MARK: - 하차 안내 ("○○에서 내려요")
@@ -106,16 +106,17 @@ struct OnboardView: View {
     func rideInfo(option: BoardableOption) -> some View {
         let stop = getoffName(option)
         let stops = option.afterSteps.first?.stopsCount
-        return VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 8) {
             (Text(stop).foregroundColor(.appBlue) + Text("에서 내려요").foregroundColor(.primary))
                 .font(.system(size: 24, weight: .heavy))
+                .lineSpacing(4)
             if let n = stops {
                 Text("\(n) 정거장 남음 · 약 \(option.afterSteps.first?.durationMinutes ?? n * 2)분 후")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.secondary)
             }
         }
-        .padding(.bottom, 16)
+        .padding(.bottom, 22)
     }
 
     // MARK: - 버스 탑승 구간 타임라인 (지금 탄 버스 한 구간만)
@@ -130,6 +131,7 @@ struct OnboardView: View {
         let remaining = getOff?.stopsCount ?? max(0, pass.count - 1)
         return BusRideTimeline(
             boardStop: board,
+            getOffStop: getoffName(option),
             stops: pass,
             coords: getOff?.passStopCoords ?? [],
             remainingFallback: remaining
@@ -148,7 +150,7 @@ struct OnboardView: View {
                 .foregroundColor(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, 14).padding(.vertical, 13)
         .background(Color.appBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBlue, lineWidth: 1.5))
     }
@@ -287,13 +289,13 @@ struct OnboardView: View {
                     Text("경로 이탈·잘못 탑승 등").font(.system(size: 12)).foregroundColor(.secondary)
                 }
                 Spacer()
-                Text(emergencyOpen ? "닫기" : "도움받기")
+                Text(emergencyOpen ? "닫기" : "경로 다시 찾기")
                     .font(.system(size: 12, weight: .bold)).foregroundColor(.white)
                     .padding(.horizontal, 11).padding(.vertical, 6)
                     .background(Color.appOrange, in: RoundedRectangle(cornerRadius: 10))
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Color(hex: "#fff8f0"), in: RoundedRectangle(cornerRadius: 14))
+            .background(Color.appWarnBg, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appOrange, lineWidth: 1.5))
         }
         .buttonStyle(.plain)
@@ -301,8 +303,8 @@ struct OnboardView: View {
 
     var emergencyPanel: some View {
         VStack(spacing: 0) {
-            emergencyOption(icon: "mappin.and.ellipse", tint: .appRed,
-                            title: "정거장을 지나쳤어요", sub: "현재 위치에서 다시 경로 탐색") {
+            emergencyOption(icon: "location.slash", tint: .appRed,
+                            title: "현재 위치에서 재탐색", sub: "길을 잃었거나 정거장을 지나쳤을 때") {
                 emergencyOpen = false
                 vm.startReroute()
             }
@@ -317,7 +319,7 @@ struct OnboardView: View {
                 vm.goHome(); vm.startSearch(target: .to)
             }
         }
-        .background(Color(hex: "#fff8f0"), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.appWarnBg, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appOrange, lineWidth: 1.5))
     }
 
@@ -372,6 +374,7 @@ struct OnboardView: View {
 
 struct BusRideTimeline: View {
     let boardStop: String
+    let getOffStop: String         // 하차역 이름 — 접힌 타임라인의 마지막 노드에 표시.
     let stops: [String]            // 전체 경유 정류장 [탑승역 … 하차역]. 없을 수 있음.
     let coords: [Coordinate]       // stops와 같은 순서·길이의 좌표 (GPS 매칭용). 없으면 빈 배열.
     let remainingFallback: Int     // 이름 데이터가 없을 때 쓸 "남은 정거장 수"
@@ -428,7 +431,7 @@ struct BusRideTimeline: View {
                     Text("지금 여기쯤").font(.system(size: 13)).foregroundColor(.appBlue)
                 }
             }
-            upcomingNode(kind: .upcoming, remaining: remaining, mids: upMids)
+            upcomingSection(dotKind: .upcoming, remaining: remaining, mids: upMids)
         }
     }
 
@@ -444,8 +447,8 @@ struct BusRideTimeline: View {
                 Text(boardStop).font(.system(size: 15, weight: .semibold)).foregroundColor(.secondary)
                 Text("여기서 탔어요").font(.system(size: 13)).foregroundColor(.secondary)
             }
-            // 위치를 모를 땐 "앞으로" 노드에 펄스를 줘서 이동 중임을 표현 (기존 동작)
-            upcomingNode(kind: .current, remaining: remaining, mids: mids)
+            // 위치를 모를 땐 "앞으로" 접기 노드에 펄스를 줘서 이동 중임을 표현 (기존 동작)
+            upcomingSection(dotKind: .current, remaining: remaining, mids: mids)
         }
     }
 
@@ -459,7 +462,8 @@ struct BusRideTimeline: View {
             VStack(spacing: 0) {
                 dot(kind).padding(.top, 4)
                 if !isLast {
-                    Rectangle().fill(Color.appLine).frame(width: 2).frame(minHeight: 26)
+                    // 접힌 목록이 펼쳐지면 그만큼 길어지도록 연결선을 콘텐츠 높이까지 늘린다.
+                    Rectangle().fill(Color.appLine).frame(width: 2).frame(minHeight: 26, maxHeight: .infinity)
                 }
             }
             .frame(width: 16)
@@ -482,22 +486,42 @@ struct BusRideTimeline: View {
         }
     }
 
-    // "앞으로 N 정거장" 노드 — 접고 펼치기 (마지막 노드)
+    // 남은 구간 → 하차역. 접힘 상태에선 "앞으로 N 정거장" 토글(중간) + 하차역(마지막) 두 노드로.
+    // "앞으로 N 정거장"을 마지막 자리에 두지 않고, 접힌 위치 다음에 실제 하차역이 오도록 한다.
     @ViewBuilder
-    private func upcomingNode(kind: NodeKind, remaining: Int, mids: [String]) -> some View {
-        node(kind: kind, isLast: true) {
-            if remaining <= 0 {
-                Text("곧 내려요").font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
-            } else if mids.isEmpty {
-                Text("앞으로 \(remaining) 정거장").font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+    private func upcomingSection(dotKind: NodeKind, remaining: Int, mids: [String]) -> some View {
+        if remaining <= 0 {
+            // 이미 하차역 — 노드 하나
+            node(kind: dotKind, isLast: true) {
+                Text(getOffStop).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+                Text("곧 내려요").font(.system(size: 13)).foregroundColor(.appBlue)
+            }
+        } else {
+            collapseNode(dotKind: dotKind, remaining: remaining, mids: mids)
+            // 마지막 노드 = 하차역
+            node(kind: .upcoming, isLast: true) {
+                Text(getOffStop).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
+                Text("여기서 내려요").font(.system(size: 13)).foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // "앞으로 N 정거장" 접기 토글 — 연결선이 이어지는 중간 노드. 펼치면 경유역 목록.
+    @ViewBuilder
+    private func collapseNode(dotKind: NodeKind, remaining: Int, mids: [String]) -> some View {
+        node(kind: dotKind, isLast: false) {
+            if mids.isEmpty {
+                Text("앞으로 \(remaining) 정거장")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
             } else {
                 Button {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { expanded.toggle() }
                 } label: {
                     HStack(spacing: 6) {
                         Text("앞으로 \(remaining) 정거장")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.primary)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.secondary)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.secondary)

@@ -4,7 +4,7 @@ import MapKit
 struct HomeView: View {
     @EnvironmentObject var vm: TransitViewModel
     @StateObject private var location = LocationManager.shared
-    @StateObject private var mapController = MapController()
+    @StateObject private var mapController = MapController.shared
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -50,7 +50,10 @@ struct HomeView: View {
         .sheet(isPresented: Binding(
             get: { vm.appState == .searching },
             set: { presented in
-                if !presented {
+                // 사용자가 시트를 직접 내렸을 때만 홈으로. 장소 선택 후
+                // fetchRoutes 가 이미 .routes/.intercity 로 넘어간 경우엔
+                // 늦게 도착한 dismiss 콜백이 그 상태를 .home 으로 덮어쓰지 않게 한다.
+                if !presented && vm.appState == .searching {
                     vm.appState = .home
                     vm.pendingSaveCategory = nil
                 }
@@ -145,7 +148,25 @@ struct LocateButton: View {
 // MARK: - 지도 명령 컨트롤러 (recenter)
 
 final class MapController: ObservableObject {
+    static let shared = MapController()
+
     weak var mapView: MKMapView?
+
+    /// 간판으로 구한 방위각이 화면 위쪽이 되도록 지도를 한 번 회전 (정면 = 위).
+    /// 내 위치를 중심에 두고 걷기 좋은 줌으로 맞춘다.
+    func orient(toHeading heading: Double, center: Coordinate?) {
+        guard let map = mapView else { return }
+        let target: CLLocationCoordinate2D
+        if let c = center {
+            target = CLLocationCoordinate2D(latitude: c.lat, longitude: c.lng)
+        } else if let loc = map.userLocation.location {
+            target = loc.coordinate
+        } else {
+            target = map.centerCoordinate
+        }
+        let cam = MKMapCamera(lookingAtCenter: target, fromDistance: 500, pitch: 0, heading: heading)
+        map.setCamera(cam, animated: true)
+    }
 
     /// 내 위치로 재중앙. 위치를 모르면 추적 모드(follow)로 전환.
     func recenter() {
@@ -379,18 +400,16 @@ struct HomeSearchBar: View {
             .buttonStyle(.plain)
             .frame(height: rowHeight)
             .overlay(alignment: .trailing) {
-                Menu {
-                    Button(role: .destructive) {
+                if vm.fromPlace != nil {
+                    Button {
                         vm.fromPlace = nil
-                        vm.toPlace = nil
                     } label: {
-                        Label("출발·도착 지우기", systemImage: "xmark")
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.secondary)
+                            .frame(width: 32, height: 32)
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 32, height: 32)
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -413,11 +432,24 @@ struct HomeSearchBar: View {
             .buttonStyle(.plain)
             .frame(height: rowHeight)
             .overlay(alignment: .trailing) {
-                Button(action: vm.swapPlaces) {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 32, height: 32)
+                HStack(spacing: 2) {
+                    if vm.toPlace != nil {
+                        Button {
+                            vm.toPlace = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.secondary)
+                                .frame(width: 32, height: 32)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button(action: vm.swapPlaces) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 32, height: 32)
+                    }
                 }
             }
         }
